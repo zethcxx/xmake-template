@@ -19,7 +19,11 @@ strict diagnostics, and zero-bloat.
 Run the following scripts from your project root to fetch the core configuration files without cloning the entire repository.
 
 ### Unix (Linux/macOS)
+```sh
 curl -sSL https://raw.githubusercontent.com/zethcxx/repo/main/install.sh | sh
+```
 
 ### Windows (Powershell)
+```sh
 powershell -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/zethcxx/repo/main/install.ps1 | iex"
+```
