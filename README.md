@@ -2,7 +2,7 @@
 
 A high-performance, minimalist C++23 build template powered by **xmake**. 
 Designed for low-level systems programming, focusing on binary hardening, 
-strict diagnostics, and zero-bloat.
+strict diagnostics, and zero-bloat for Windows and Linux.
 
 > **Note:** This is a personal configuration tailored for my workflow, 
 > but feel free to use, fork, or modify it.
@@ -20,10 +20,12 @@ Run the following scripts from your project root to fetch the core configuration
 
 ### Unix (Linux/macOS)
 ```sh
-curl -sSL https://raw.githubusercontent.com/zethcxx/repo/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/zethcxx/xmake-template/refs/heads/main/install.sh | sh # -s -- <project_name>
 ```
 
 ### Windows (Powershell)
 ```sh
-powershell -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/zethcxx/repo/main/install.ps1 | iex"
+powershell -Command "& { $(iwr -useb https://raw.githubusercontent.com/zethcxx/xmake-template/refs/heads/main/install.ps1) }" # '<project_name>'"
 ```
+
+If no project name is provided, it defaults to the current directory.
