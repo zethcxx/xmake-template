@@ -236,13 +236,12 @@ local function apply_release_flags( target, info )
     -- DEFINES (C + C++) ---------------------------------------------------
     -- [[ COMMON ]]
     target:add( "defines",
-        "_FORTIFY_SOURCE=2",
         "_NDEBUG=1",
         "NDEBUG=1",
         { force = true })
 
-    -- [[ LINUX/GCC ]]
-    if not is_windows(info) then
+    -- [[ GLIBC ]]
+    if info.abi ~= "msvc" and not target:policy("build.c++.modules.std") then
         target:add("defines", "_FORTIFY_SOURCE=2", { force = true })
     end
 
