@@ -51,11 +51,12 @@ local function apply_common_flags( target, info )
 
     f.cxflags({
         "-pipe",
-        "-masm=intel",
         "-fdiagnostics-color=always",
         "-march=" .. march,
         "-mtune=" .. mtune,
     })
+
+    f.cxxflags({ "-masm=intel" })
 
     if is_windows( info ) then
         f.defines({

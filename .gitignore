@@ -1,1 +1,11 @@
 .xmake/
+build/
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.lib
+*.so
+*.dll
+*.dylib

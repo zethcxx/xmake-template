@@ -65,13 +65,14 @@ On Linux, `entry` maps to `-Wl,--entry=<val>`; `subsystem` and `noentry` are ign
 
 These survive the flag pipeline (saved before reset, restored after defaults):
 
-| `add_*()` | Description |
-|---|---|
+| `add_*()` / `set()` | Description |
+|---|---|---|
 | `add_cxflags(...)` | Extra C/C++ flags |
 | `add_cflags(...)` | Extra C flags |
 | `add_cxxflags(...)` | Extra C++ flags |
 | `add_links(...)` | Extra libraries to link |
 | `add_defines(...)` | Extra preprocessor defines |
+| `set("runargs", {...})` | Arguments passed to the target at runtime (`on_run`) |
 
 Example:
 ```lua
@@ -107,6 +108,7 @@ target("app")
 
     set("buildtype", "native"  )
     set("subsystem", "CONSOLE" )
+    set("runargs",   {"arg1", "arg2"})
 
     add_links("m")
 
