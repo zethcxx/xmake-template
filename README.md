@@ -20,12 +20,12 @@ Run the following scripts from your project root to fetch the core configuration
 
 ### Unix (Linux/macOS)
 ```sh
-curl -sSL https://raw.githubusercontent.com/zethcxx/xmake-template/refs/heads/main/install.sh | sh # -s -- <project_name>
+curl -sSL https://github.com/zethcxx/xmake-template/raw/main/install.sh | sh -s -- <project_name>
 ```
 
 ### Windows (Powershell)
-```sh
-powershell -Command "& { $(iwr -useb https://raw.githubusercontent.com/zethcxx/xmake-template/refs/heads/main/install.ps1) }" # '<project_name>'"
+```powershell
+iwr -useb https://github.com/zethcxx/xmake-template/raw/main/install.ps1 | iex
 ```
 
 If no project name is provided, it defaults to the current directory.

@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $ProjectName = if ($args[0]) { $args[0] } else { "." }
 
-$BaseUrl = "https://raw.githubusercontent.com/zethcxx/xmake-template/refs/heads/main"
+$BaseUrl = "https://raw.githubusercontent.com/zethcxx/xmake-template/main"
 
 $Entries = @(
     "xmake.lua",

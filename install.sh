@@ -7,7 +7,7 @@ mkdir -p "$PROJECT_NAME/xmake/cfg" "$PROJECT_NAME/xmake/rules" "$PROJECT_NAME/ap
 
 echo "[*] Creating project structure: $PROJECT_NAME"
 
-BASE_URL="https://raw.githubusercontent.com/zethcxx/xmake-template/refs/heads/main"
+BASE_URL="https://raw.githubusercontent.com/zethcxx/xmake-template/main"
 ENTRIES=( "xmake.lua" "xmake/cfg/triple.lua" "xmake/cfg/flags.lua" "xmake/rules/compile_commands.lua" "xmake/actions.lua" "app/main.cpp" )
 
 cd "$PROJECT_NAME"
