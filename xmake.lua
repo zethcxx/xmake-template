@@ -3,17 +3,17 @@ set_version ( "1.0.0"   )
 set_xmakever( "2.8.0"   )
 
 -- GENERATE compile_commands.json -----------------------------------------------------
-rule( "vscode.compile_commands" )
-    after_config( function( target )
-        import( "core.base.task" ).run( "project", {
-            kind      = "compile_commands",
-            outputdir = ".vscode"
-        })
-    end )
+rule("vscode.compile_commands")
+    after_config(function()
+        import("plugins.project.clang.compile_commands", {rootdir = os.programdir()}).make(".vscode")
+    end)
 rule_end()
 
 
 -- HELPERS ---------------------------------------------------------------------------
+local cfg_triple = import("xmake.cfg_triple")
+local cfg_flags  = import("xmake.cfg_flags" )
+
 local function _run_process( target )
     import("core.base.process")
 
@@ -39,12 +39,12 @@ local function _run_process( target )
 end
 
 local function _config_proyect( target )
-    local triple = import( "xmake.cfg_triple")
-    local flags  = import( "xmake.cfg_flags" )
-    local info   = triple.get( target )
+    flags.apply( target, cfg_triple.get( target ))
+end
 
-    flags.apply      ( target, info )
-    triple.print_info( target, info )
+local function _print_info( target )
+    if os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then return end
+    cfg_triple.print_info(target, cfg_triple.get( target ))
 end
 
 
@@ -61,7 +61,7 @@ target( "main" )
 
     add_files("app/main.cpp")
 
-    on_config( _config_proyect )
-    on_run   ( _run_process    )
-target_end()
+    on_config ( _config_proyect )
+    on_prepare( _print_info     )
+    on_run    ( _run_process    )
 

@@ -48,9 +48,7 @@ local function apply_common_flags( target, info )
     end
 
     if is_release( target ) then
-        _add_cxflags({
-
-        })
+        _add_cxflags({})
     end
 end
 

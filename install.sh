@@ -20,3 +20,4 @@ done
 
 echo ""
 echo "[✔] Environment initialized successfully."
+

@@ -1,8 +1,8 @@
 import( "core.project.config" )
 
-local function print_item( key, value )
-    cprint("${blue}[*] ${bright white}%-12s ${blue}: ${bright white}%s${clear}", key, tostring( value ))
-end
+-- local function print_item( key, value )
+--     cprint("${blue}[*] ${bright white}%-12s ${blue}: ${bright white}%s${clear}", key, tostring( value ))
+-- end
 
 function get( target )
     local name      = config.get("toolchain")
@@ -56,18 +56,26 @@ function get( target )
     return info
 end
 
+
 function print_info( target, info )
-    cprint( "${blue}-- TARGET DETAILS -------------------------------------------${clear}" )
-    print_item( "Modo"        , info.mode            )
-    print_item( "Toolchain"   , info.toolchain       )
-    print_item( "Target"      , info.raw             )
-    print_item( "Arquitectura", info.arch            )
-    print_item( "Vendor"      , info.vendor          )
-    print_item( "Plataforma"  , info.os              )
-    print_item( "ABI Type"    , info.abi             )
-    print_item( "Maquina"     , info.bits .. "-bits" )
-    print_item( "Output"      , target:targetfile()  )
-    cprint( "${blue}-------------------------------------------------------------" )
+    cprint("${white}┌${#216}[ ${bright}%s${reset}${#216}: %s ]", target:name(), target:targetfile())
+    cprint("${white}│${#223}    mode     : ${white}%s"         , info.mode)
+    cprint("${white}│${#223}    toolchain: ${white}%s ${#223}(${white}%s${#223}-abi)", info.toolchain, info.abi)
+    cprint("${white}│${#223}    triple   : ${white}%s", info.raw)
+    cprint("${white}└─${clear}")
+
+    -- cprint( "${blue}-- TARGET DETAILS -------------------------------------------${clear}" )
+    -- print_item( "Mode"        , info.mode            )
+    -- print_item( "Toolchain"   , info.toolchain       )
+    -- print_item( "Triple"      , info.raw             )
+    -- print_item( "Arch"        , info.arch            )
+    -- print_item( "Vendor"      , info.vendor          )
+    -- print_item( "Platform"    , info.os              )
+    -- print_item( "ABI Type"    , info.abi             )
+    -- print_item( "Machine"     , info.bits .. "-bits" )
+    -- print_item( "Target"      , target:name()        )
+    -- print_item( "Output"      , target:targetfile()  )
+    -- cprint( "${blue}-------------------------------------------------------------" )
 
     -- if info.arch:find("i686") then
     --     cprint("  ${yellow}[!] ADVERTENCIA: Compilador en modo 32-bits detectado.${clear}")

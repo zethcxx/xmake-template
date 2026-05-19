@@ -18,9 +18,10 @@ New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "app") | Out-N
 foreach ($entry in $Entries) {
     $url = "$BaseUrl/$entry"
     $outputPath = Join-Path $ProjectName $entry
-    
+
     Write-Host "[+] Downloading: $entry" -ForegroundColor Cyan
     Invoke-WebRequest -Uri $url -OutFile $outputPath -UseBasicParsing
 }
 
 Write-Host "`n[✔] Environment initialized successfully." -ForegroundColor Green
+
