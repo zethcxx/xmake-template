@@ -6,14 +6,17 @@ $BaseUrl = "https://raw.githubusercontent.com/zethcxx/xmake-template/refs/heads/
 
 $Entries = @(
     "xmake.lua",
-    "xmake/cfg_flags.lua",
-    "xmake/cfg_triple.lua",
+    "xmake/cfg/triple.lua",
+    "xmake/cfg/flags.lua",
+    "xmake/rules/compile_commands.lua",
+    "xmake/actions.lua",
     "app/main.cpp"
 )
 
 Write-Host "[*] Creating project structure: $ProjectName" -ForegroundColor Gray
-New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake") | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "app") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake/cfg")   | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake/rules") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "app")         | Out-Null
 
 foreach ($entry in $Entries) {
     $url = "$BaseUrl/$entry"
@@ -24,4 +27,3 @@ foreach ($entry in $Entries) {
 }
 
 Write-Host "`n[✔] Environment initialized successfully." -ForegroundColor Green
-
