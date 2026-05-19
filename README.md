@@ -1,14 +1,13 @@
 # xmake-template
 
-A high-performance, minimalist C++23 build template powered by **xmake**.
-Designed for low-level systems programming, focusing on binary hardening,
-strict diagnostics, and zero-bloat for Windows and Linux.
+A personal C++23 build template powered by **xmake**, focused on binary hardening,
+strict diagnostics, and zero-bloat for **Linux** and **Windows**.
 
-> **Note:** This is a personal configuration tailored for my workflow,
-> but feel free to use, fork, or modify it.
+> **Scope:** Targets **GCC** and **Clang** only — no MSVC, NASM, MASM, or other toolchains.
+> This is my personal configuration, but feel free to use, fork, or modify it.
 
 ## Key Features
-* **Toolchain Agnostic:** Fine-tuned for `Clang` (preferred) and `GCC`.
+* **Focused:** Fine-tuned for `Clang` (preferred) and `GCC`.
 * **Hardening:** Includes stack protectors, RELRO, NX, and ASLR flags.
 * **Diagnostics:** Aggressive warning levels for both C and C++.
 * **No-Bloat:** RTTI and Exceptions disabled by default in release builds.
