@@ -11,7 +11,7 @@ strict diagnostics, and zero-bloat for **Linux** and **Windows**.
 * **Hardening:** Includes stack protectors, RELRO, NX, and ASLR flags.
 * **Diagnostics:** Aggressive warning levels for both C and C++.
 * **No-Bloat:** RTTI and Exceptions disabled by default in release builds.
-* **Automation:** Automatic `compile_commands.json` generation for LSP support.
+* **Automation:** Opt-in `compile_commands.json` generation via `xmake f --compile-commands=y`.
 
 ## Quick Start
 
@@ -88,14 +88,14 @@ target("my_app")
 ### Full Example
 
 ```lua
-set_project("MyProject")
-set_version("1.0.0")
-set_xmakever("2.8.0")
+set_project   ("MyProject")
+set_version   ("1.0.0")
+set_xmakever  ("2.8.0")
+set_toolchains("clang", "gcc")
 
+includes("xmake/actions.lua")
 includes("xmake/rules/compile_commands.lua")
 add_rules("vscode.compile_commands")
-
-local act = import("xmake.actions")
 
 target("app")
     set_default   (true         )

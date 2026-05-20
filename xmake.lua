@@ -1,7 +1,8 @@
 --: Headers ---------------------------------------------
-set_project ("Testing")
-set_version ("0.1.0")
-set_xmakever("2.8.0")
+set_project   ("Testing")
+set_version   ("0.1.0")
+set_xmakever  ("2.8.0")
+set_toolchains( "clang", "gcc" )
 
 --: Includes --------------------------------------------
 includes("xmake/rules/compile_commands.lua")

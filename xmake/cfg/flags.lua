@@ -342,3 +342,4 @@ function apply( target, info )
         target:add("defines", saved.defines, {force = true})
     end
 end
+
