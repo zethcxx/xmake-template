@@ -3,15 +3,12 @@ set_project ("Testing")
 set_version ("0.1.0")
 set_xmakever("2.8.0")
 
+--: Includes --------------------------------------------
+includes("xmake/rules/compile_commands.lua")
+includes("xmake/actions.lua")
 
 --: Configs ---------------------------------------------
-includes("xmake/rules/compile_commands.lua")
 add_rules("vscode.compile_commands")
-
-
---: Actions ---------------------------------------------
-local act = import("xmake.actions")
-
 
 --: Targets ---------------------------------------------
 target("main")

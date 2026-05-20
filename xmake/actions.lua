@@ -2,18 +2,18 @@ local triple  = import("cfg.triple")
 local flags   = import("cfg.flags")
 local process = import("core.base.process")
 
-local M = {}
+act = {}
 
-function M.configure( target )
+function act.configure( target )
     flags.apply( target, triple.get( target ))
 end
 
-function M.print_info(target)
+function act.print_info(target)
     if os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then return end
     triple.print_info( target, triple.get( target ))
 end
 
-function M.run_process(target)
+function act.run_process(target)
     local program = target:targetfile()
     local args    = target:get("runargs") or {}
 
@@ -34,6 +34,4 @@ function M.run_process(target)
 
     proc:close()
 end
-
-return M
 
