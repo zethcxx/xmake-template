@@ -88,10 +88,9 @@ target("my_app")
 ### Full Example
 
 ```lua
-set_project   ("MyProject")
-set_version   ("1.0.0")
-set_xmakever  ("2.8.0")
-set_toolchains("clang", "gcc")
+set_project ("MyProject")
+set_version ("1.0.0"   )
+set_xmakever("2.8.0"   )
 
 includes("./xmake/actions.lua")
 includes("./xmake/rules/compile_commands.lua")
@@ -111,8 +110,9 @@ target("app")
 
     add_links("m")
 
-    on_config( act.configure   )
-    on_run   ( act.run_process )
+    on_config     ( act.configure   )
+    before_prepare( act.print_info  )
+    on_run        ( act.run_process )
 ```
 
 ## Project Structure
@@ -120,7 +120,7 @@ target("app")
 ```
 ├── xmake.lua                   # Main build file
 ├── xmake/
-│   ├── actions.lua             # Target lifecycle actions & on_prepare hook (configure, run, info)
+│   ├── actions.lua             # Target lifecycle actions (configure, run, info)
 │   ├── cfg/
 │   │   ├── triple.lua          # Toolchain triple detection
 │   │   └── flags.lua           # Flag pipeline (common, debug, release, linker)

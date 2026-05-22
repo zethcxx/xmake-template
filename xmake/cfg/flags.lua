@@ -185,6 +185,8 @@ local function apply_release_flags( target, info )
     if not is_mode("release") then return end
     local f = add_to(target)
 
+    local is_payload = target:get("payloadtype") == true
+
     f.cxflags({
         "-fomit-frame-pointer",
         "-fdata-sections",
@@ -193,12 +195,16 @@ local function apply_release_flags( target, info )
         "-fvisibility=hidden",
         "-fvisibility-inlines-hidden",
 
-        "-fstack-protector-strong",
-
         "-fno-exceptions",
         "-fno-rtti",
         "-fno-ident",
     })
+
+    if is_payload then
+        f.cxflags({ "-fno-stack-protector" })
+    else
+        f.cxflags({ "-fstack-protector-strong" })
+    end
 
     f.cflags({})
     f.cxxflags({})
@@ -208,9 +214,13 @@ local function apply_release_flags( target, info )
     end
 
     if is_clang( info ) then
-        f.cxxflags({ "-Oz" })
+        if is_payload then
+            f.cxxflags({ "-Oz" })
+        else
+            f.cxxflags({ "-O3" })
+        end
 
-        if not is_windows then
+        if not is_windows(info) then
             f.cxxflags({
                 "-flto",
                 "-fuse-ld=lld",
@@ -218,14 +228,15 @@ local function apply_release_flags( target, info )
         end
     end
 
-
     target:add("defines", {
         "_NDEBUG=1",
         "NDEBUG=1",
     }, { force = true })
 
-    if info.abi ~= "msvc" and not target:policy("build.c++.modules.std") then
-        target:add("defines", { "_FORTIFY_SOURCE=2" }, { force = true })
+    if not is_payload then
+        if info.abi ~= "msvc" and not target:policy("build.c++.modules.std") then
+            target:add("defines", { "_FORTIFY_SOURCE=2" }, { force = true })
+        end
     end
 
     if is_windows( info ) then
@@ -243,8 +254,9 @@ local function apply_linker( target, info )
     assert(table.contains(SUBSYSTEMS, subsystem),
         "Invalid subsystem '" .. tostring(subsystem) .. "'. Valid: " .. table.concat(SUBSYSTEMS, ", "))
 
-    local entry   = target:get("entry")
-    local noentry = target:get("noentry")
+    local entry      = target:get("entry")
+    local noentry    = target:get("noentry")
+    local is_payload = target:get("payloadtype") == true
 
     assert(not (entry and noentry),
         "'entry' and 'noentry' are mutually exclusive. Use one or the other.")
@@ -253,17 +265,20 @@ local function apply_linker( target, info )
         local f = add_to(target)
 
         if is_release(target) then
-            f.ldflags({
-                "-Wl,/INCREMENTAL:NO",
-                "-Wl,/OPT:REF",
-                "-Wl,/OPT:ICF",
-                "-Wl,/DYNAMICBASE",
-                "-Wl,/NXCOMPAT",
-                "-Wl,/HIGHENTROPYVA",
-                "-Wl,/MANIFEST:NO",
-                "-Wl,/DEBUG:NONE",
-                "-Wl,/SUBSYSTEM:" .. subsystem,
-            })
+            if is_payload then
+                f.ldflags({
+                    "-Wl,/DYNAMICBASE:NO",
+                    "-Wl,/NXCOMPAT:NO",
+                    "-Wl,/NODEFAULTLIB",
+                    "-Wl,/NODEFAULTLIB:uuid"
+                })
+            else
+                f.ldflags({
+                    "-Wl,/DYNAMICBASE",
+                    "-Wl,/NXCOMPAT",
+                    "-Wl,/HIGHENTROPYVA",
+                })
+            end
 
             if noentry then
                 f.ldflags({ "-Wl,/NOENTRY" })
@@ -305,6 +320,10 @@ local function apply_linker( target, info )
                 "-Wl,-z,noexecstack",
                 "-Wl,-z,defs",
             }, {force = true})
+        end
+
+        if is_payload then
+                target:add("ldflags", { "-nostdlib" }, {force = true})
         end
 
         if entry then

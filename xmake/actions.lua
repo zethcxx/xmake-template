@@ -7,7 +7,7 @@ function act.configure( target )
     flags.apply( target, triple.get( target ))
 end
 
-function act.run_process( target )
+function act.run_process(target)
     local process = import("core.base.process")
     local program = target:targetfile()
     local args    = target:get("runargs") or {}
@@ -30,10 +30,9 @@ function act.run_process( target )
     proc:close()
 end
 
-on_prepare( function( target )
-    if not os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then
-        local triple  = import("xmake.cfg.triple")
-        triple.print_info( target, triple.get( target ))
-    end
-end)
+function act.print_info( target )
+    if os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then return end
+    local triple  = import("xmake.cfg.triple")
+    triple.print_info( target, triple.get( target ))
+end
 
