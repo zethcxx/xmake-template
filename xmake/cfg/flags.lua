@@ -26,6 +26,27 @@ local function is_gcc    ( info ) return info.toolchain:find("gcc"  ) ~= nil end
 local function is_windows( info ) return info.os:find("windows") or info.abi == "msvc" end
 local function is_release( target ) return config.get("mode") == "release" end
 
+local function get_target_value(target, key, default)
+    local config_val = get_config(key)
+    if type(config_val) == "string" then
+        return config_val
+    end
+    if config_val == true then
+        return true
+    end
+    local val = target:values(key)
+    if val ~= nil then
+        if type(val) == "table" then
+            return val[1] or default
+        end
+        return val
+    end
+    local prop = target:get(key)
+    if prop ~= nil then
+        return prop
+    end
+    return default
+end
 
 local function add_to(target)
     return {
@@ -40,14 +61,14 @@ end
 
 local function apply_common_flags( target, info )
     local f         = add_to(target)
-    local buildtype = target:get("buildtype") or "generic"
+    local buildtype = get_target_value(target, "buildtype", "generic")
 
     assert(BUILDTYPES[buildtype] ~= nil,
         "Invalid buildtype '" .. tostring(buildtype) .. "'. Options: " .. table.concat(table.keys(BUILDTYPES), ", "))
 
     local bt    = BUILDTYPES[buildtype]
-    local march = target:get("march") or bt.march
-    local mtune = target:get("mtune") or bt.mtune
+    local march = get_target_value(target, "march", bt.march)
+    local mtune = get_target_value(target, "mtune", bt.mtune)
 
     f.cxflags({
         "-pipe",
@@ -76,7 +97,7 @@ end
 
 local function apply_debug_flags( target, info )
     if not is_mode("debug") then return end
-    local f = add_to(target)
+    local f = add_to( target )
 
     f.cxflags({
         "-Wall",
@@ -185,7 +206,8 @@ local function apply_release_flags( target, info )
     if not is_mode("release") then return end
     local f = add_to(target)
 
-    local is_payload = target:get("payloadtype") == true
+    local is_payload      = get_target_value(target, "payloadtype"    , false)
+    local stack_protector = get_target_value(target, "stack_protector", true )
 
     f.cxflags({
         "-fomit-frame-pointer",
@@ -200,7 +222,7 @@ local function apply_release_flags( target, info )
         "-fno-ident",
     })
 
-    if is_payload then
+    if is_payload or not stack_protector then
         f.cxflags({ "-fno-stack-protector" })
     else
         f.cxflags({ "-fstack-protector-strong" })
@@ -249,14 +271,14 @@ end
 
 
 local function apply_linker( target, info )
-    local subsystem = target:get("subsystem") or "CONSOLE"
+    local subsystem = get_target_value(target, "subsystem", "CONSOLE")
 
     assert(table.contains(SUBSYSTEMS, subsystem),
         "Invalid subsystem '" .. tostring(subsystem) .. "'. Valid: " .. table.concat(SUBSYSTEMS, ", "))
 
-    local entry      = target:get("entry")
-    local noentry    = target:get("noentry")
-    local is_payload = target:get("payloadtype") == true
+    local entry      = get_target_value(target, "entry"      , false)
+    local noentry    = get_target_value(target, "noentry"    , false)
+    local is_payload = get_target_value(target, "payloadtype", false)
 
     assert(not (entry and noentry),
         "'entry' and 'noentry' are mutually exclusive. Use one or the other.")
@@ -352,6 +374,7 @@ function apply( target, info )
     target:add("cxflags",  saved.cxflags  or {}, {force = true})
     target:add("cflags",   saved.cflags   or {}, {force = true})
     target:add("cxxflags", saved.cxxflags or {}, {force = true})
+
     if saved.links then
         for _, lib in ipairs(saved.links) do
             target:add("links", lib)

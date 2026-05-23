@@ -2,11 +2,18 @@ import( "core.project.config" )
 
 function get( target )
     local name      = config.get("toolchain")
-    local toolchain = target:toolchain(name) or target:toolchains()[1]
-    local cc        = target:tool( "cc" )
-
-    assert( toolchain:name():find( "gcc") or toolchain:name():find("clang"),
-        string.format( "Toolchain %s not supported. Use GCC or Clang.", toolchain ))
+    local toolchain = target:toolchain(name)
+    if not toolchain then
+        for _, tc in ipairs(target:toolchains()) do
+            local tcname = tc:name()
+            if tcname:find("gcc") or tcname:find("clang") then
+                toolchain = tc
+                break
+            end
+        end
+    end
+    assert(toolchain, "no supported toolchain found. use gcc or clang.")
+    local cc = target:tool("cc")
 
     local target_flag = nil
     local cxflags     = target:get("cxflags")
