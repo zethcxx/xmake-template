@@ -23,7 +23,7 @@ end
 
 local function is_clang  ( info ) return info.compiler == "clang" end
 local function is_gcc    ( info ) return info.compiler == "gcc"   end
-local function is_windows( info ) return info.os:find("windows") or info.abi == "msvc" end
+local function is_msvc  ( info ) return info.abi == "msvc" end
 local function is_release( target ) return config.get("mode") == "release" end
 
 local function get_target_value(target, key, default)
@@ -78,7 +78,7 @@ local function apply_common_flags( target, info )
         "-mtune=" .. mtune,
     })
 
-    if is_windows( info ) then
+    if is_msvc( info ) then
         f.defines({
             "_CRT_SECURE_NO_WARNINGS=1",
             "WIN32_LEAN_AND_MEAN=1",
@@ -187,7 +187,7 @@ local function apply_debug_flags( target, info )
         "_DEBUG=1",
     }, { force = true })
 
-    if is_windows( info ) then
+    if is_msvc( info ) then
         target:add("defines", {
             "_ITERATOR_DEBUG_LEVEL=2",
             "_SECURE_SCL=1",
@@ -195,7 +195,7 @@ local function apply_debug_flags( target, info )
         }, { force = true })
     end
 
-    if not is_windows(info) then
+    if not is_msvc(info) then
         target:add("defines", { "_GLIBCXX_ASSERTIONS" }, { force = true })
     end
 end
@@ -241,7 +241,7 @@ local function apply_release_flags( target, info )
             f.cxxflags({ "-O3" })
         end
 
-        if not is_windows(info) and not is_payload then
+        if not is_msvc(info) and not is_payload then
             f.cxflags({ "-flto" })
             f.ldflags({ "-flto", "-fuse-ld=lld" })
         end
@@ -253,12 +253,12 @@ local function apply_release_flags( target, info )
     }, { force = true })
 
     if not is_payload then
-        if info.abi ~= "msvc" and not target:policy("build.c++.modules.std") then
+        if not is_msvc(info) and not target:policy("build.c++.modules.std") then
             target:add("defines", { "_FORTIFY_SOURCE=2" }, { force = true })
         end
     end
 
-    if is_windows( info ) then
+    if is_msvc( info ) then
         target:add("defines", {
             "NDEBUG=1",
             "_SECURE_SCL=0",
@@ -280,7 +280,7 @@ local function apply_linker( target, info )
     assert(not (entry and noentry),
         "'entry' and 'noentry' are mutually exclusive. Use one or the other.")
 
-    if is_windows(info) then
+    if is_msvc(info) then
         local f = add_to(target)
 
         if is_release(target) then
