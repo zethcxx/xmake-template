@@ -2,19 +2,21 @@ act = {}
 
 function act.configure( target )
     local triple  = import("xmake.cfg.triple")
-    local flags   = import("xmake.cfg.flags")
+    local info    = triple.get( target )
+    if not info then return end
 
-    flags.apply( target, triple.get( target ))
+    local flags = import("xmake.cfg.flags")
+    flags.apply( target, info )
 end
 
-function act.run_process(target)
+function act.run_process( target )
     local process = import("core.base.process")
     local program = target:targetfile()
     local args    = target:get("runargs") or {}
 
     cprint("${bright green}[Running: " .. program .. "]")
 
-    local proc = process.openv(program, args, {detach = true})
+    local proc = process.openv( program, args, { detach = true })
     local ok, status = proc:wait()
 
     if ok < 0 then
@@ -32,7 +34,7 @@ end
 
 function act.print_info( target )
     if os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then return end
-    local triple  = import("xmake.cfg.triple")
+    local triple = import("xmake.cfg.triple")
     triple.print_info( target, triple.get( target ))
 end
 

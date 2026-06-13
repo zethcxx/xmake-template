@@ -21,8 +21,8 @@ local function reset_flags(target)
 end
 
 
-local function is_clang  ( info ) return info.toolchain:find("clang") ~= nil end
-local function is_gcc    ( info ) return info.toolchain:find("gcc"  ) ~= nil end
+local function is_clang  ( info ) return info.compiler == "clang" end
+local function is_gcc    ( info ) return info.compiler == "gcc"   end
 local function is_windows( info ) return info.os:find("windows") or info.abi == "msvc" end
 local function is_release( target ) return config.get("mode") == "release" end
 
