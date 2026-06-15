@@ -100,9 +100,8 @@ function get( target )
     end
 
     local raw_triple = detect_triple( target, cc, compiler, toolchain )
-    local plat       = target:plat() or "unknown"
-    local arch       = target:arch() or "unknown"
     local parts      = string.split( raw_triple, "-" )
+    local arch       = (parts[1] or "") ~= "" and parts[1] or (target:arch() or "unknown")
 
     local info = {
         raw       = raw_triple,
