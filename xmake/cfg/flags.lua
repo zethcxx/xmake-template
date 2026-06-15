@@ -5,26 +5,49 @@ local SUBSYSTEMS = table.join(
     is_host("windows") and { "EFI_APPLICATION" } or {}
 )
 
-local BUILDTYPES = {
+local BUILDTYPES_X86_64 = {
     native  = { march = "native",       mtune = "native"  },
     generic = { march = "x86-64-v2",    mtune = "generic" },
     legacy  = { march = "x86-64-v1",    mtune = "generic" },
     modern  = { march = "x86-64-v4",    mtune = "generic" },
 }
 
+local BUILDTYPES_ARM64 = {
+    native  = { march = "native",     mtune = "native"  },
+    generic = { march = "armv8-a",    mtune = "generic" },
+    legacy  = { march = "armv8-a",    mtune = "generic" },
+    modern  = { march = "armv8.5-a",  mtune = "generic" },
+}
+
+local BUILDTYPES_ARM32 = {
+    native  = { march = "native",    mtune = "native"  },
+    generic = { march = "armv7-a",   mtune = "generic" },
+    legacy  = { march = "armv5te",   mtune = "generic" },
+    modern  = { march = "armv7ve",   mtune = "generic" },
+}
+
 local function reset_flags(target)
     target:set("cflags",   {})
     target:set("cxxflags", {})
     target:set("cxflags",  {})
+    target:set("asflags",  {})
     target:set("ldflags",  {})
+    target:set("shflags",  {})
     target:set("links",    {})
 end
 
 
 local function is_clang  ( info ) return info.compiler == "clang" end
 local function is_gcc    ( info ) return info.compiler == "gcc"   end
-local function is_msvc  ( info ) return info.abi == "msvc" end
-local function is_release( target ) return config.get("mode") == "release" end
+local function is_msvc   ( info ) return info.abi == "msvc" end
+
+local function is_x86_64(info)
+    return info.arch and info.arch:find("x86") ~= nil and info.is_x64
+end
+
+local function is_arm(info)
+    return info.arch and (info.arch:find("arm") ~= nil or info.arch:find("aarch64") ~= nil)
+end
 
 local function get_target_value(target, key, default)
     local config_val = get_config(key)
@@ -60,23 +83,52 @@ end
 
 
 local function apply_common_flags( target, info )
-    local f         = add_to(target)
+    local f = add_to(target)
+
     local buildtype = get_target_value(target, "buildtype", "generic")
 
-    assert(BUILDTYPES[buildtype] ~= nil,
-        "Invalid buildtype '" .. tostring(buildtype) .. "'. Options: " .. table.concat(table.keys(BUILDTYPES), ", "))
+    local bt_map
+    if is_x86_64(info) then
+        bt_map = BUILDTYPES_X86_64
+    elseif is_arm(info) then
+        bt_map = info.is_x64 and BUILDTYPES_ARM64 or BUILDTYPES_ARM32
+    end
 
-    local bt    = BUILDTYPES[buildtype]
-    local march = get_target_value(target, "march", bt.march)
-    local mtune = get_target_value(target, "mtune", bt.mtune)
+    if bt_map then
+        assert(bt_map[buildtype] ~= nil,
+            "Invalid buildtype '" .. tostring(buildtype) .. "' for " .. info.arch .. ". Options: " .. table.concat(table.keys(bt_map), ", "))
+    end
+
+    local march, mtune
+    if is_x86_64(info) then
+        local bt = bt_map[buildtype]
+        march = get_target_value(target, "march", bt.march)
+        mtune = get_target_value(target, "mtune", bt.mtune)
+
+        local masm = get_target_value(target, "masm", "intel")
+        if masm == "intel" then
+            f.cxflags({ "-masm=intel" })
+        end
+    elseif is_arm(info) then
+        local bt = bt_map[buildtype]
+        march = get_target_value(target, "march", bt.march)
+        mtune = get_target_value(target, "mtune", bt.mtune)
+    else
+        march = get_target_value(target, "march", nil)
+        mtune = get_target_value(target, "mtune", nil)
+    end
 
     f.cxflags({
         "-pipe",
-        "-masm=intel",
         "-fdiagnostics-color=always",
-        "-march=" .. march,
-        "-mtune=" .. mtune,
     })
+
+    if march then
+        f.cxflags({ "-march=" .. march })
+    end
+    if mtune then
+        f.cxflags({ "-mtune=" .. mtune })
+    end
 
     if is_msvc( info ) then
         f.defines({
@@ -86,10 +138,6 @@ local function apply_common_flags( target, info )
             "UNICODE=1",
             "_UNICODE=1",
         })
-    end
-
-    if is_release( target ) then
-        f.cxflags({})
     end
 end
 
@@ -180,9 +228,7 @@ local function apply_debug_flags( target, info )
         })
     end
 
-
     target:add("defines", {
-        "_GLIBCXX_ASSERTIONS",
         "DEBUG=1",
         "_DEBUG=1",
     }, { force = true })
@@ -193,9 +239,7 @@ local function apply_debug_flags( target, info )
             "_SECURE_SCL=1",
             "_CRTDBG_MAP_ALLOC=1",
         }, { force = true })
-    end
-
-    if not is_msvc(info) then
+    else
         target:add("defines", { "_GLIBCXX_ASSERTIONS" }, { force = true })
     end
 end
@@ -207,6 +251,8 @@ local function apply_release_flags( target, info )
 
     local is_payload      = get_target_value(target, "payloadtype"    , false)
     local stack_protector = get_target_value(target, "stack_protector", true )
+    local exceptions      = get_target_value(target, "exceptions"     , false)
+    local rtti            = get_target_value(target, "rtti"           , false)
 
     f.cxflags({
         "-fomit-frame-pointer",
@@ -216,19 +262,21 @@ local function apply_release_flags( target, info )
         "-fvisibility=hidden",
         "-fvisibility-inlines-hidden",
 
-        "-fno-exceptions",
-        "-fno-rtti",
         "-fno-ident",
     })
+
+    if not exceptions then
+        f.cxflags({ "-fno-exceptions" })
+    end
+    if not rtti then
+        f.cxflags({ "-fno-rtti" })
+    end
 
     if is_payload or not stack_protector then
         f.cxflags({ "-fno-stack-protector" })
     else
         f.cxflags({ "-fstack-protector-strong" })
     end
-
-    f.cflags({})
-    f.cxxflags({})
 
     if is_gcc(info) then
         f.cxflags({ "-O3" })
@@ -238,12 +286,18 @@ local function apply_release_flags( target, info )
         if is_payload then
             f.cxxflags({ "-Oz" })
         else
-            f.cxxflags({ "-O3" })
+            f.cxflags({ "-O3" })
         end
 
-        if not is_msvc(info) and not is_payload then
+        if not is_payload then
             f.cxflags({ "-flto" })
-            f.ldflags({ "-flto", "-fuse-ld=lld" })
+            if is_msvc(info) then
+                f.ldflags({ "-flto", "-fuse-ld=lld-link" })
+            elseif info.abi == "android" then
+                f.ldflags({ "-flto" })
+            else
+                f.ldflags({ "-flto", "-fuse-ld=lld" })
+            end
         end
     end
 
@@ -285,7 +339,7 @@ local function apply_linker( target, info )
 
         f.ldflags({ "-Wl,/SUBSYSTEM:" .. subsystem,})
 
-        if is_release(target) then
+        if is_mode("release") then
             if is_payload then
                 f.ldflags({
                     "-Wl,/DYNAMICBASE:NO",
@@ -324,21 +378,25 @@ local function apply_linker( target, info )
         end
 
     else
-        if is_release(target) then
+        if is_mode("release") then
             target:add("ldflags", {
                 "-Wl,--gc-sections",
+                "-Wl,--as-needed",
                 "-Wl,--exclude-libs,ALL",
                 "-Wl,--strip-all",
                 "-Wl,-z,relro",
                 "-Wl,-z,noexecstack",
                 "-Wl,-z,defs",
+                "-Wl,-z,separate-code",
             }, {force = true})
         else
             target:add("ldflags", {
+                "-Wl,--as-needed",
                 "-Wl,-z,relro",
                 "-Wl,-z,now",
                 "-Wl,-z,noexecstack",
                 "-Wl,-z,defs",
+                "-Wl,-z,separate-code",
             }, {force = true})
         end
 
@@ -358,6 +416,9 @@ function apply( target, info )
         cxflags  = target:get("cxflags"),
         cflags   = target:get("cflags"),
         cxxflags = target:get("cxxflags"),
+        asflags  = target:get("asflags"),
+        ldflags  = target:get("ldflags"),
+        shflags  = target:get("shflags"),
         links    = target:get("links"),
         defines  = target:get("defines"),
     }
@@ -372,6 +433,9 @@ function apply( target, info )
     target:add("cxflags",  saved.cxflags  or {}, {force = true})
     target:add("cflags",   saved.cflags   or {}, {force = true})
     target:add("cxxflags", saved.cxxflags or {}, {force = true})
+    target:add("asflags",  saved.asflags  or {}, {force = true})
+    target:add("ldflags",  saved.ldflags  or {}, {force = true})
+    target:add("shflags",  saved.shflags  or {}, {force = true})
 
     if saved.links then
         for _, lib in ipairs(saved.links) do

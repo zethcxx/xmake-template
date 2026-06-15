@@ -80,20 +80,11 @@ end
 
 local function detect_abi( raw_triple )
     if not raw_triple then return "gnu" end
-
-    local parts = string.split( raw_triple, "-" )
-    local last  = parts[#parts]
-
-    if     last == "msvc"    then return "msvc"
-    elseif last == "gnu"     then return "gnu"
-    elseif last == "musl"    then return "musl"
-    elseif last == "android" then return "android"
-    elseif last == "cygnus"  then return "cygnus"
+    if     raw_triple:find("msvc")    then return "msvc"
+    elseif raw_triple:find("android") then return "android"
+    elseif raw_triple:find("musl")    then return "musl"
+    elseif raw_triple:find("cygnus")  then return "cygnus"
     end
-
-    if raw_triple:find( "msvc"    ) then return "msvc"    end
-    if raw_triple:find( "android" ) then return "android" end
-
     return "gnu"
 end
 
@@ -132,10 +123,19 @@ end
 
 function print_info( target, info )
     if not info then return end
+
+    local march = info.arch
+    for _, flag in ipairs(target:get("cxflags") or {}) do
+        local m = flag:match("^-march=(.+)$")
+        if m then march = m; break end
+    end
+
     cprint( "${white}┌${#216}[ ${bright}%s${reset}${#216}: %s ]", target:name(), target:targetfile())
-    cprint( "${white}│${#223}    mode     : ${white}%s"         , info.mode     )
-    cprint( "${white}│${#223}    toolchain: ${white}%s"         , info.toolchain)
-    cprint( "${white}│${#223}    compiler : ${white}%s"         , info.compiler )
-    cprint( "${white}│${#223}    triple   : ${white}%s"         , info.raw      )
+    cprint( "${white}│${#223}    mode     : ${white}%s"         , info.mode       )
+    cprint( "${white}│${#223}    toolchain: ${white}%s${#223} (${white}%s${#223}-abi)" , info.toolchain, info.abi )
+    cprint( "${white}│${#223}    compiler : ${white}%s"         , info.compiler   )
+    cprint( "${white}│${#223}    triple   : ${white}%s"         , info.raw        )
+    cprint( "${white}│${#223}    march    : ${white}%s"         , march           )
     cprint( "${white}└─${clear}" )
 end
+
