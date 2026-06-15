@@ -1,10 +1,10 @@
 # xmake-template
 
 A personal C++23 build template powered by **xmake**, focused on binary hardening,
-strict diagnostics, zero-bloat, and **multi-architecture** / **cross-compilation**.
+strict diagnostics, zero-bloat, and **ABI-aware multi-architecture** support.
 
-> Targets **GCC** and **Clang** across **Linux**, **Windows** (via `wincross`),
-> **Android** (via `droidcross`), and other ABIs detected from the target triple.
+> Targets **GCC** and **Clang** across **Linux**, **Windows**, **Android**, and any
+> other platform — ABI is detected automatically from the target triple.
 > This is my personal configuration, but feel free to use, fork, or modify it.
 
 ## Key Features
@@ -108,19 +108,19 @@ set_values("rtti",       true)   -- keep -frtti in release
 
 ### Compilation Info
 
-On every build the template prints detected toolchain info:
+On every build the template prints detected toolchain info with ABI detection:
 
 ```
-┌[ main: build/android/arm64-v8a/release/exec ]
+┌[ main: build/linux/x86_64/release/exec ]
 │    mode     : release
-│    toolchain: droidcross (android-abi)
-│    compiler : clang
-│    triple   : aarch64-linux-android35
-│    march    : armv8-a
+│    toolchain: envs (gnu-abi)
+│    compiler : gcc
+│    triple   : x86_64-redhat-linux
+│    march    : x86-64-v2
 └─
 ```
 
-The `abi` suffix reflects the detected ABI from the target triple (`android`, `gnu`, `msvc`, `musl`, etc.).
+The `abi` suffix (`gnu`, `msvc`, `android`, `musl`, etc.) is detected automatically from the target triple.
 
 ### Linker Flags (non-MSVC)
 
@@ -131,19 +131,10 @@ The `abi` suffix reflects the detected ABI from the target triple (`android`, `g
 
 ### Cross-compilation
 
-The template works with custom xmake toolchains and platforms.
-
-With the `droidcross` platform (requires `~/.xmake/platforms/droidcross/`):
+ABI detection works with any xmake toolchain. Just set the platform/arch/toolchain as usual — the template adjusts flags automatically:
 
 ```sh
-xmake f -p droidcross -a arm64-v8a -m release
-xmake
-```
-
-Or with the `--toolchain` flag (no platform setup needed):
-
-```sh
-xmake f --toolchain=droidcross -p android -a arm64-v8a -m release
+xmake f -p android -a arm64-v8a -m release
 xmake
 ```
 
