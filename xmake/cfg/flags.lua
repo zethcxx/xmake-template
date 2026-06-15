@@ -283,6 +283,8 @@ local function apply_linker( target, info )
     if is_msvc(info) then
         local f = add_to(target)
 
+        f.ldflags({ "-Wl,/SUBSYSTEM:" .. subsystem,})
+
         if is_release(target) then
             if is_payload then
                 f.ldflags({
@@ -310,7 +312,6 @@ local function apply_linker( target, info )
             f.ldflags({
                 "-Wl,/DEBUG",
                 "-Wl,/INCREMENTAL",
-                "-Wl,/SUBSYSTEM:" .. subsystem,
             })
 
             if noentry then

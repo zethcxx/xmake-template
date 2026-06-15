@@ -1,13 +1,5 @@
 import( "core.project.config" )
 
-local ABI_MAP = {
-    msvc    = "msvc",
-    windows = "msvc",
-    cygwin  = "cygnus",
-    android = "android",
-    linux   = "gnu",
-}
-
 local function detect_compiler( cc )
     if not cc then return "unknown" end
     local compiler = "unknown"
@@ -25,17 +17,35 @@ local function detect_compiler( cc )
 end
 
 
-local function detect_triple( target, cc, compiler )
-    -- 1. Buscar --target= en cxflags (cross-compilation con clang)
-    local cxflags = target:get( "cxflags" )
-    if cxflags then
-        for _, flag in ipairs( cxflags ) do
-            local t = flag:match( "-target%s+(%S+)" ) or flag:match( "--target=(%S+)" )
-            if t then return t end
+local function find_target_flag( toolchain, target )
+    if toolchain then
+        for _, key in ipairs({ "cxflags", "cxxflags", "cflags", "ldflags" }) do
+            local flags = toolchain:get( key )
+            if flags then
+                for _, f in ipairs( flags ) do
+                    local t = f:match( "-target%s+(%S+)" ) or f:match( "--target=(%S+)" )
+                    if t then return t end
+                end
+            end
         end
     end
+    for _, key in ipairs({ "cxflags", "cxxflags", "cflags", "ldflags" }) do
+        local flags = target:get( key )
+        if flags then
+            for _, flag in ipairs( flags ) do
+                local t = flag:match( "-target%s+(%S+)" ) or flag:match( "--target=(%S+)" )
+                if t then return t end
+            end
+        end
+    end
+    return nil
+end
 
-    -- 2. Ejecutar el compilador (funciona para compilación nativa)
+
+local function detect_triple( target, cc, compiler, toolchain )
+    local flag_target = find_target_flag( toolchain, target )
+    if flag_target then return flag_target end
+
     local raw = nil
     if cc then
         local args = compiler == "clang" and { "-print-target-triple" } or { "-dumpmachine" }
@@ -47,7 +57,6 @@ local function detect_triple( target, cc, compiler )
     end
     if raw and raw ~= "" then return raw end
 
-    -- 3. Construir triple desde target:arch() + target:plat()
     local arch = target:arch() or "unknown"
     local plat = target:plat() or "unknown"
     if plat == "windows" then
@@ -57,15 +66,34 @@ local function detect_triple( target, cc, compiler )
 end
 
 
-local function detect_abi( raw_triple, plat )
-    for key, abi in pairs( ABI_MAP ) do
-        if raw_triple:find( key ) then
-            return abi
-        end
+local function detect_os( raw_triple )
+    local parts = string.split( raw_triple, "-" )
+    local n = #parts
+    if n >= 4 then
+        return parts[n - 1]
+    elseif n == 3 then
+        return parts[n]
     end
-    if plat == "windows" then
-        return "msvc"
+    return "unknown"
+end
+
+
+local function detect_abi( raw_triple )
+    if not raw_triple then return "gnu" end
+
+    local parts = string.split( raw_triple, "-" )
+    local last  = parts[#parts]
+
+    if     last == "msvc"    then return "msvc"
+    elseif last == "gnu"     then return "gnu"
+    elseif last == "musl"    then return "musl"
+    elseif last == "android" then return "android"
+    elseif last == "cygnus"  then return "cygnus"
     end
+
+    if raw_triple:find( "msvc"    ) then return "msvc"    end
+    if raw_triple:find( "android" ) then return "android" end
+
     return "gnu"
 end
 
@@ -80,7 +108,7 @@ function get( target )
         return nil
     end
 
-    local raw_triple = detect_triple( target, cc, compiler )
+    local raw_triple = detect_triple( target, cc, compiler, toolchain )
     local plat       = target:plat() or "unknown"
     local arch       = target:arch() or "unknown"
     local parts      = string.split( raw_triple, "-" )
@@ -91,11 +119,11 @@ function get( target )
         compiler  = compiler,
         arch      = arch,
         vendor    = parts[2] or "unknown",
-        os        = plat,
+        os        = detect_os( raw_triple ),
         bits      = ( arch:find( "64" ) or raw_triple:find( "64" )) and "64" or "32",
         is_x64    = ( arch:find( "64" ) or raw_triple:find( "64" )) and true or false,
         mode      = config.get( "mode" ),
-        abi       = detect_abi( raw_triple, plat ),
+        abi       = detect_abi( raw_triple ),
     }
 
     return info
