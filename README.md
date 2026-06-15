@@ -131,7 +131,16 @@ The `abi` suffix reflects the detected ABI from the target triple (`android`, `g
 
 ### Cross-compilation
 
-The template works with custom xmake toolchains. Example using the `droidcross` toolchain:
+The template works with custom xmake toolchains and platforms.
+
+With the `droidcross` platform (requires `~/.xmake/platforms/droidcross/`):
+
+```sh
+xmake f -p droidcross -a arm64-v8a -m release
+xmake
+```
+
+Or with the `--toolchain` flag (no platform setup needed):
 
 ```sh
 xmake f --toolchain=droidcross -p android -a arm64-v8a -m release
