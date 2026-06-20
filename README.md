@@ -43,19 +43,19 @@ The `get_target_value()` pipeline reads values in this priority:
 3. **`set()`** — target-level property (legacy)
 4. **Hardcoded default** — in `flags.lua`
 
-| Key | Default | Description |
-|---|---|---|
-| `buildtype` | `"generic"` | `native`, `generic`, `legacy`, `modern` (per arch) |
-| `subsystem` | `"CONSOLE"` | `CONSOLE`, `WINDOWS`, `NATIVE`, `POSIX` (Windows) |
-| `entry` | — | Custom entry point |
-| `noentry` | `false` | No entry point (mutually exclusive with `entry`) |
-| `payloadtype` | `false` | Enable payload mode (disables LTO, strips, nostdlib) |
-| `stack_protector` | `false` | `-fstack-protector-strong` in release |
-| `march` | *(from buildtype)* | Override `-march` individually |
-| `mtune` | *(from buildtype)* | Override `-mtune` individually |
-| `masm` | `"intel"` | Assembly dialect — `"intel"` or `"att"` (x86_64 only) |
-| `exceptions` | `false` | Enable C++ exceptions in release builds |
-| `rtti` | `false` | Enable RTTI in release builds |
+| Key               | Default            | Description                                           |
+|-------------------|--------------------|-------------------------------------------------------|
+| `buildtype`       | `"generic"`        | `native`, `generic`, `legacy`, `modern` (per arch)    |
+| `subsystem`       | `"CONSOLE"`        | `CONSOLE`, `WINDOWS`, `NATIVE`, `POSIX` (Windows)     |
+| `entry`           | —                  | Custom entry point                                    |
+| `noentry`         | `false`            | No entry point (mutually exclusive with `entry`)      |
+| `payloadtype`     | `false`            | Enable payload mode (disables LTO, strips, nostdlib)  |
+| `stack_protector` | `false`            | `-fstack-protector-strong` in release                 |
+| `march`           | *(from buildtype)* | Override `-march` individually                        |
+| `mtune`           | *(from buildtype)* | Override `-mtune` individually                        |
+| `masm`            | `"intel"`          | Assembly dialect — `"intel"` or `"att"` (x86_64 only) |
+| `exceptions`      | `false`            | Enable C++ exceptions in release builds               |
+| `rtti`            | `false`            | Enable RTTI in release builds                         |
 
 ### Architecture Presets
 
@@ -124,10 +124,10 @@ The `abi` suffix (`gnu`, `msvc`, `android`, `musl`, etc.) is detected automatica
 
 ### Linker Flags (non-MSVC)
 
-| Mode | Flags |
-|---|---|
+| Mode    | Flags                                                                                                                            |
+|---------|----------------------------------------------------------------------------------------------------------------------------------|
 | Release | `--gc-sections`, `--as-needed`, `--exclude-libs,ALL`, `--strip-all`, `-z relro`, `-z noexecstack`, `-z defs`, `-z separate-code` |
-| Debug | `--as-needed`, `-z relro`, `-z now`, `-z noexecstack`, `-z defs`, `-z separate-code` |
+| Debug   | `--as-needed`, `-z relro`, `-z now`, `-z noexecstack`, `-z defs`, `-z separate-code`                                             |
 
 ### Cross-compilation
 
@@ -138,15 +138,43 @@ xmake f -p android -a arm64-v8a -m release
 xmake
 ```
 
+### Local Package Repository
+
+The template includes a local xmake package repository at `xmake/packages/` for personal libraries.
+Enabled via:
+
+```lua
+add_repositories("local-repo xmake")
+```
+
+#### lbyte.stx
+
+A header-only C++23 utility library tracked via git tags:
+
+| Require                            | Description            |
+|------------------------------------|------------------------|
+| `add_requires("lbyte.stx")`        | Latest `main` branch   |
+| `add_requires("lbyte.stx main")`   | Explicit `main` branch |
+| `add_requires("lbyte.stx v0.2.0")` | Specific git tag       |
+
+```lua
+add_requires("lbyte.stx", {configs = {use_modules = false}})
+target("app")
+    add_packages("lbyte.stx")
+```
+
+The package uses GitHub archive URLs with `$(version)` substitution — no manual version entries needed
+after adding a git tag.
+
 ### Custom Extras (survive flag reset)
 
-| Method | Description |
-|---|---|
-| `add_cxflags(...)` | Extra C/C++ flags |
-| `add_cflags(...)` | Extra C flags |
-| `add_cxxflags(...)` | Extra C++ flags |
-| `add_links(...)` | Extra libraries to link |
-| `add_defines(...)` | Extra preprocessor defines |
+| Method                  | Description                 |
+|-------------------------|-----------------------------|
+| `add_cxflags(...)`      | Extra C/C++ flags           |
+| `add_cflags(...)`       | Extra C flags               |
+| `add_cxxflags(...)`     | Extra C++ flags             |
+| `add_links(...)`        | Extra libraries to link     |
+| `add_defines(...)`      | Extra preprocessor defines  |
 | `set("runargs", {...})` | Arguments passed at runtime |
 
 ### Full Example
@@ -189,6 +217,10 @@ target("app")
 │   ├── cfg/
 │   │   ├── triple.lua          # Toolchain detection
 │   │   └── flags.lua           # Flag pipeline
+│   ├── packages/
+│   │   └── l/
+│   │       └── lbyte.stx/
+│   │           └── xmake.lua   # Local package repo
 │   └── rules/
 │       └── compile_commands.lua
 ├── app/
@@ -197,3 +229,4 @@ target("app")
 ├── install.ps1
 └── README.md
 ```
+

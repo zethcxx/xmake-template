@@ -8,6 +8,7 @@ includes("./xmake/rules/compile_commands.lua")
 includes("./xmake/actions.lua")
 
 --: Configs ---------------------------------------------
+add_repositories("local-repo ./xmake/")
 add_rules("vscode.compile_commands")
 
 --: Targets ---------------------------------------------
