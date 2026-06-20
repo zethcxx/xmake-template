@@ -19,6 +19,9 @@ package("lbyte.stx")
 
     on_install(function (package)
         os.cp("include", package:installdir())
+        if package:config("use_modules") then
+            os.cp("modules", package:installdir())
+        end
     end)
 
     on_test(function (package)
