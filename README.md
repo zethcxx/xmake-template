@@ -151,11 +151,11 @@ add_repositories("local-repo xmake")
 
 A header-only C++23 utility library tracked via git tags:
 
-| Require                            | Description            |
-|------------------------------------|------------------------|
-| `add_requires("lbyte.stx")`        | Latest `main` branch   |
-| `add_requires("lbyte.stx main")`   | Explicit `main` branch |
-| `add_requires("lbyte.stx v0.2.0")` | Specific git tag       |
+| Require                              | Description                        |
+|--------------------------------------|------------------------------------|
+| `add_requires("lbyte.stx")`          | Latest `main` branch (default)     |
+| `add_requires("lbyte.stx main")`     | Explicit `main` branch             |
+| `add_requires("lbyte.stx v0.2.0")`   | Specific git tag                   |
 
 ```lua
 add_requires("lbyte.stx", {configs = {use_modules = false}})
@@ -163,8 +163,7 @@ target("app")
     add_packages("lbyte.stx")
 ```
 
-The package uses GitHub archive URLs with `$(version)` substitution — no manual version entries needed
-after adding a git tag.
+New tags must be added to the package's `add_versions` entries to be resolvable.
 
 ### Custom Extras (survive flag reset)
 
