@@ -3,11 +3,10 @@ package("lbyte.stx")
     set_homepage("https://github.com/zethcxx/stx")
     set_description("C++23 Systems Toolbelt")
 
-    add_urls("https://github.com/zethcxx/stx/archive/refs/tags/$(version).tar.gz",
-             {version = "(v%d+%.%d+%.%d+)"})
-    add_urls("https://github.com/zethcxx/stx/archive/$(version).tar.gz")
-
+    add_urls("https://github.com/zethcxx/stx.git")
     add_versions("main", "main")
+    add_versions("v0.1.0", "v0.1.0")
+    add_versions("v0.2.0", "v0.2.0")
 
     add_configs("use_modules", { description = "Build C++ modules", default = false, type = "boolean" })
 
