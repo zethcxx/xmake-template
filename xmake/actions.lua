@@ -7,6 +7,17 @@ function act.configure( target )
 
     local flags = import("xmake.cfg.flags")
     flags.apply( target, info )
+
+    local project = import("core.project.project")
+    for _, depname in ipairs(target:get("deps") or {}) do
+        local dep = project.target(depname)
+        if dep then
+            local gen_dir = dep:values("payload.generated_dir")
+            if gen_dir then
+                target:add("includedirs", gen_dir, {force = true})
+            end
+        end
+    end
 end
 
 function act.run_process( target )
