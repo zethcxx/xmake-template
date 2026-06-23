@@ -282,16 +282,22 @@ local function apply_release_flags( target, info )
         f.cxflags({ "-fstack-protector-strong" })
     end
 
-    if is_gcc(info) then
+    local opt = get_target_value(target, "optimize")
+    if not opt then
+        opt = is_freestanding and "fast" or "faster"
+    end
+
+    if opt == "size" then
+        f.cxflags({ is_clang(info) and "-Oz" or "-Os" })
+    elseif opt == "fast" then
+        f.cxflags({ "-O2" })
+    elseif opt == "faster" then
         f.cxflags({ "-O3" })
+    else
+        f.cxflags({ opt })
     end
 
     if is_clang( info ) then
-        local opt = get_target_value(target, "payload.optimize")
-        if not opt then
-            opt = is_freestanding and "-O2" or "-O3"
-        end
-        f.cxflags({ opt })
 
         if not is_freestanding then
             f.cxflags({ "-flto" })

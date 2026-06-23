@@ -51,6 +51,7 @@ The `get_target_value()` pipeline reads values in this priority:
 | `noentry`              | `false`            | No entry point (mutually exclusive with `entry`)      |
 | `payload.freestanding` | `false`            | Freestanding mode (nostdlib, no stack protector, Oz)  |
 | `stack_protector`      | `false`            | `-fstack-protector-strong` in release                 |
+| `optimize`             | auto               | `size` (-Oz/Os), `fast` (-O2), `faster` (-O3), or raw |
 | `march`                | *(from buildtype)* | Override `-march` individually                        |
 | `mtune`                | *(from buildtype)* | Override `-mtune` individually                        |
 | `masm`                 | `"intel"`          | Assembly dialect — `"intel"` or `"att"` (x86_64 only) |
@@ -187,7 +188,7 @@ alongside the binary. The output path is shown in the target info block:
 |------------------------|-----------|--------------------------------------------------|
 | `payload.section`      | `".text"` | Section name to extract                          |
 | `payload.freestanding` | `true`    | Freestanding mode (nostdlib, -O2, no stack protector) |
-| `payload.optimize`     | auto      | Optimization level (default: `-O2` if freestanding, `-O3` else) |
+| `optimize`             | auto      | Override default optimization level (see Per-target Keys) |
 | `payload.extract`      | `true`    | Enable/disable extraction                        |
 | `payload.align`        | —         | Pad `.bin` to alignment boundary                 |
 | `payload.fill_byte`    | `0x00`    | Byte used for padding / strip sentinel           |
