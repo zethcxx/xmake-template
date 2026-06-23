@@ -186,7 +186,8 @@ alongside the binary. The output path is shown in the target info block:
 | Value                  | Default   | Description                                      |
 |------------------------|-----------|--------------------------------------------------|
 | `payload.section`      | `".text"` | Section name to extract                          |
-| `payload.freestanding` | `true`    | Apply freestanding flags (nostdlib, Oz, ...)     |
+| `payload.freestanding` | `true`    | Freestanding mode (nostdlib, -O2, no stack protector) |
+| `payload.optimize`     | auto      | Optimization level (default: `-O2` if freestanding, `-O3` else) |
 | `payload.extract`      | `true`    | Enable/disable extraction                        |
 | `payload.align`        | —         | Pad `.bin` to alignment boundary                 |
 | `payload.fill_byte`    | `0x00`    | Byte used for padding / strip sentinel           |

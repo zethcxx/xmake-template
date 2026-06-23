@@ -287,11 +287,11 @@ local function apply_release_flags( target, info )
     end
 
     if is_clang( info ) then
-        if is_freestanding then
-            f.cxxflags({ "-Oz" })
-        else
-            f.cxflags({ "-O3" })
+        local opt = get_target_value(target, "payload.optimize")
+        if not opt then
+            opt = is_freestanding and "-O2" or "-O3"
         end
+        f.cxflags({ opt })
 
         if not is_freestanding then
             f.cxflags({ "-flto" })
