@@ -71,6 +71,10 @@ local function get_target_value(target, key, default)
     return default
 end
 
+local function is_freestanding(target)
+    return get_target_value(target, "payload.freestanding", false)
+end
+
 local function add_to(target)
     return {
         cxflags  = function(flags) target:add("cxflags" , flags, {force = true}) end,
@@ -249,7 +253,7 @@ local function apply_release_flags( target, info )
     if not is_mode("release") then return end
     local f = add_to(target)
 
-    local is_payload      = get_target_value(target, "payloadtype"    , false)
+    local is_freestanding = is_freestanding(target)
     local stack_protector = get_target_value(target, "stack_protector", true )
     local exceptions      = get_target_value(target, "exceptions"     , false)
     local rtti            = get_target_value(target, "rtti"           , false)
@@ -272,7 +276,7 @@ local function apply_release_flags( target, info )
         f.cxflags({ "-fno-rtti" })
     end
 
-    if is_payload or not stack_protector then
+    if is_freestanding or not stack_protector then
         f.cxflags({ "-fno-stack-protector" })
     else
         f.cxflags({ "-fstack-protector-strong" })
@@ -283,13 +287,13 @@ local function apply_release_flags( target, info )
     end
 
     if is_clang( info ) then
-        if is_payload then
+        if is_freestanding then
             f.cxxflags({ "-Oz" })
         else
             f.cxflags({ "-O3" })
         end
 
-        if not is_payload then
+        if not is_freestanding then
             f.cxflags({ "-flto" })
             if is_msvc(info) then
                 f.ldflags({ "-flto", "-fuse-ld=lld-link" })
@@ -306,7 +310,7 @@ local function apply_release_flags( target, info )
         "NDEBUG=1",
     }, { force = true })
 
-    if not is_payload then
+    if not is_freestanding then
         if not is_msvc(info) and not target:policy("build.c++.modules.std") then
             target:add("defines", { "_FORTIFY_SOURCE=2" }, { force = true })
         end
@@ -327,9 +331,9 @@ local function apply_linker( target, info )
     assert(table.contains(SUBSYSTEMS, subsystem),
         "Invalid subsystem '" .. tostring(subsystem) .. "'. Valid: " .. table.concat(SUBSYSTEMS, ", "))
 
-    local entry      = get_target_value(target, "entry"      , false)
-    local noentry    = get_target_value(target, "noentry"    , false)
-    local is_payload = get_target_value(target, "payloadtype", false)
+    local entry          = get_target_value(target, "entry"      , false)
+    local noentry        = get_target_value(target, "noentry"    , false)
+    local is_freestanding = is_freestanding(target)
 
     assert(not (entry and noentry),
         "'entry' and 'noentry' are mutually exclusive. Use one or the other.")
@@ -340,7 +344,7 @@ local function apply_linker( target, info )
         f.ldflags({ "-Wl,/SUBSYSTEM:" .. subsystem,})
 
         if is_mode("release") then
-            if is_payload then
+            if is_freestanding then
                 f.ldflags({
                     "-Wl,/DYNAMICBASE:NO",
                     "-Wl,/NXCOMPAT:NO",
@@ -400,7 +404,7 @@ local function apply_linker( target, info )
             }, {force = true})
         end
 
-        if is_payload then
+        if is_freestanding then
                 target:add("ldflags", { "-nostdlib" }, {force = true})
         end
 

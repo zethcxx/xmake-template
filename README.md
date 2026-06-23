@@ -43,19 +43,19 @@ The `get_target_value()` pipeline reads values in this priority:
 3. **`set()`** — target-level property (legacy)
 4. **Hardcoded default** — in `flags.lua`
 
-| Key               | Default            | Description                                           |
-|-------------------|--------------------|-------------------------------------------------------|
-| `buildtype`       | `"generic"`        | `native`, `generic`, `legacy`, `modern` (per arch)    |
-| `subsystem`       | `"CONSOLE"`        | `CONSOLE`, `WINDOWS`, `NATIVE`, `POSIX` (Windows)     |
-| `entry`           | —                  | Custom entry point                                    |
-| `noentry`         | `false`            | No entry point (mutually exclusive with `entry`)      |
-| `payloadtype`     | `false`            | Enable payload mode (disables LTO, strips, nostdlib)  |
-| `stack_protector` | `false`            | `-fstack-protector-strong` in release                 |
-| `march`           | *(from buildtype)* | Override `-march` individually                        |
-| `mtune`           | *(from buildtype)* | Override `-mtune` individually                        |
-| `masm`            | `"intel"`          | Assembly dialect — `"intel"` or `"att"` (x86_64 only) |
-| `exceptions`      | `false`            | Enable C++ exceptions in release builds               |
-| `rtti`            | `false`            | Enable RTTI in release builds                         |
+| Key                    | Default            | Description                                           |
+|------------------------|--------------------|-------------------------------------------------------|
+| `buildtype`            | `"generic"`        | `native`, `generic`, `legacy`, `modern` (per arch)    |
+| `subsystem`            | `"CONSOLE"`        | `CONSOLE`, `WINDOWS`, `NATIVE`, `POSIX` (Windows)     |
+| `entry`                | —                  | Custom entry point                                    |
+| `noentry`              | `false`            | No entry point (mutually exclusive with `entry`)      |
+| `payload.freestanding` | `false`            | Freestanding mode (nostdlib, no stack protector, Oz)  |
+| `stack_protector`      | `false`            | `-fstack-protector-strong` in release                 |
+| `march`                | *(from buildtype)* | Override `-march` individually                        |
+| `mtune`                | *(from buildtype)* | Override `-mtune` individually                        |
+| `masm`                 | `"intel"`          | Assembly dialect — `"intel"` or `"att"` (x86_64 only) |
+| `exceptions`           | `false`            | Enable C++ exceptions in release builds               |
+| `rtti`                 | `false`            | Enable RTTI in release builds                         |
 
 ### Architecture Presets
 
@@ -165,6 +165,38 @@ target("app")
 
 New tags must be added to the package's `add_versions` entries to be resolvable.
 
+### Payload Extraction
+
+The `payload_extract` rule extracts a section from a PE/ELF binary as raw shellcode:
+
+```lua
+target("payload")
+    set_kind("binary")
+    add_rules("payload_extract")
+    set_values("payload.section", ".text")
+```
+
+On every build it runs `llvm-objcopy --dump-section <section>` and writes a `.bin` file
+alongside the binary. The output path is shown in the target info block:
+
+```
+│    payload  : build/<plat>/<arch>/<mode>/<basename>.bin (<section>)
+```
+
+| Value                  | Default   | Description                                      |
+|------------------------|-----------|--------------------------------------------------|
+| `payload.section`      | `".text"` | Section name to extract                          |
+| `payload.freestanding` | `true`    | Apply freestanding flags (nostdlib, Oz, ...)     |
+| `payload.extract`      | `true`    | Enable/disable extraction                        |
+| `payload.align`        | —         | Pad `.bin` to alignment boundary                 |
+| `payload.fill_byte`    | `0x00`    | Byte used for padding / strip sentinel           |
+| `payload.strip`        | `false`   | Strip trailing fill bytes from `.bin`            |
+| `payload.output`       | auto      | Output `.bin` filename (default: `<target>.bin`) |
+| `payload.objcopy`      | auto      | Override objcopy path (auto: llvm → GNU)         |
+
+Flags are applied by `flags.lua` — the rule only sets target values, it does not
+touch compiler/linker flags directly.
+
 ### Custom Extras (survive flag reset)
 
 | Method                  | Description                 |
@@ -185,6 +217,7 @@ set_xmakever("2.8.0")
 
 includes("./xmake/actions.lua")
 includes("./xmake/rules/compile_commands.lua")
+includes("./xmake/rules/payload_extract.lua")
 add_rules("vscode.compile_commands")
 
 target("app")
@@ -221,7 +254,8 @@ target("app")
 │   │       └── lbyte.stx/
 │   │           └── xmake.lua   # Local package repo
 │   └── rules/
-│       └── compile_commands.lua
+│       ├── compile_commands.lua
+│       └── payload_extract.lua
 ├── app/
 │   └── main.cpp
 ├── install.sh

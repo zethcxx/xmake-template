@@ -131,10 +131,22 @@ function print_info( target, info )
 
     cprint( "${white}┌${#216}[ ${bright}%s${reset}${#216}: %s ]", target:name(), target:targetfile())
     cprint( "${white}│${#223}    mode     : ${white}%s"         , info.mode       )
-    cprint( "${white}│${#223}    toolchain: ${white}%s${#223} (${white}%s${#223}-abi)" , info.toolchain, info.abi )
+    cprint( "${white}│${#223}    toolchain: ${white}%s ${#223}(${white}%s${#223}-abi)" , info.toolchain, info.abi )
     cprint( "${white}│${#223}    compiler : ${white}%s"         , info.compiler   )
     cprint( "${white}│${#223}    triple   : ${white}%s"         , info.raw        )
     cprint( "${white}│${#223}    march    : ${white}%s"         , march           )
+    local rules = target:get("rules")
+    if rules then
+        for _, r in ipairs(rules) do
+            if r == "payload_extract" then
+                local section = target:values("payload.section") or ".text"
+                local binname = target:values("payload.output") or (path.basename(target:targetfile()) .. ".bin")
+                local out = path.join(path.directory(target:targetfile()), binname)
+                cprint( "${white}│${#223}    payload  : ${white}%s ${#223}(${white}%s${#223})${white}", out, section )
+                break
+            end
+        end
+    end
     cprint( "${white}└─${clear}" )
 end
 

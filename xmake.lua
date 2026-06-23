@@ -5,6 +5,7 @@ set_xmakever("2.8.0"  )
 
 --: Includes --------------------------------------------
 includes("./xmake/rules/compile_commands.lua")
+includes("./xmake/rules/payload_extract.lua")
 includes("./xmake/actions.lua")
 
 --: Configs ---------------------------------------------
