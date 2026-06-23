@@ -195,9 +195,52 @@ alongside the binary. The output path is shown in the target info block:
 | `payload.strip`        | `false`   | Strip trailing fill bytes from `.bin`            |
 | `payload.output`       | auto      | Output `.bin` filename (default: `<target>.bin`) |
 | `payload.objcopy`      | auto      | Override objcopy path (auto: llvm → GNU)         |
+| `payload.header`       | —         | Generate C/C++ header embedding the payload as hex array (see below) |
 
 Flags are applied by `flags.lua` — the rule only sets target values, it does not
 touch compiler/linker flags directly.
+
+#### Header Generation
+
+Set `payload.header` to generate an include file embedding the payload as hex bytes:
+
+```lua
+set_values("payload.header", {"cxx"})           -- C++ header (default)
+set_values("payload.header", {"c"})             -- C header
+set_values("payload.header", {"cxx", "inc/"})   -- custom output dir relative to .bin
+set_values("payload.header", {"cxx", "${root}/inc/"})  -- absolute via ${root}/${build}
+```
+
+- **C output** (`.h`): `unsigned char name[] = { ... }; unsigned int name_size = N;`
+- **C++ output** (`.hpp`): `namespace name { consteval auto data() { ... } consteval std::size_t size() { ... } }`
+
+The byte array is formatted as blocks of 12 hex values per line:
+
+```cpp
+constexpr std::array<unsigned char, 206> raw = {
+    0x56, 0x57, 0x53, 0x48, 0x83, 0xEC, 0x30, 0x48, 0xB8, 0x6E, 0x6F, 0x74,
+    0x65, 0x70, 0x61, 0x64, 0x2E, 0x48, 0x89, 0x44, 0x24, 0x20, 0xC7, 0x44,
+    ...
+    0x5E, 0xC3
+};
+```
+
+The generated header is placed in `<bin-dir>/generated/` by default, and its directory
+is automatically injected into the loader's `includedirs` via `add_deps`.
+
+#### Payload Binary Copy
+
+The `payload_bin` rule copies the entire target binary to a `.bin` file (for flat binary
+output like NASM `-f bin`):
+
+```lua
+target("payload")
+    set_kind("binary")
+    add_rules("payload_bin")
+```
+
+It supports the same `payload.header`, `payload.output`, `payload.align`,
+`payload.fill_byte`, and `payload.strip` options as `payload_extract`.
 
 ### Custom Extras (survive flag reset)
 

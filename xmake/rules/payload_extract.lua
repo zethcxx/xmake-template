@@ -85,11 +85,7 @@ rule("payload_extract")
             relpath = relpath:gsub("%${build}", path.directory(out))
 
             local outdir = path.join(path.directory(out), relpath)
-            if is_host("windows") then
-                os.execv("cmd.exe", {"/c", "mkdir \"" .. outdir .. "\""})
-            else
-                os.execv("mkdir", {"-p", outdir})
-            end
+            os.mkdir(outdir)
 
             local basename = path.basename(out)
             local ext = lang == "c" and ".h" or ".hpp"
@@ -100,17 +96,24 @@ rule("payload_extract")
                 local data = f:read("*all")
                 f:close()
 
-                local hex = {}
-                for i = 1, #data do
-                    hex[#hex + 1] = string.format("0x%02X", data:byte(i))
-                end
-                local hexstr = table.concat(hex, ", ")
+            local parts = {}
+            for i = 1, #data do
+                parts[#parts + 1] = string.format("0x%02X", data:byte(i))
+            end
+            local lines = {}
+            for i = 1, #parts, 16 do
+                local chunk = table.concat(parts, ", ", i, math.min(i + 11, #parts))
+                lines[#lines + 1] = "            " .. chunk
+            end
+            local hexstr = table.concat(lines, ",\n")
 
                 if lang == "c" then
                     io.writefile(header, string.format([[
 #pragma once
 
-unsigned char %s[] = { %s };
+unsigned char %s[] = {
+%s
+};
 unsigned int %s_size = %d;
 ]], basename, hexstr, basename, #data))
                 else
@@ -122,7 +125,9 @@ unsigned int %s_size = %d;
 
 namespace %s {
     consteval auto data() {
-        constexpr std::array<unsigned char, %d> raw = { %s };
+        constexpr std::array<unsigned char, %d> raw = {
+%s
+        };
         return raw;
     }
     consteval std::size_t size() { return %d; }
@@ -134,3 +139,4 @@ namespace %s {
             end
         end
     end)
+
