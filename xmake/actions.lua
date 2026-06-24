@@ -1,11 +1,19 @@
 act = {}
 
 function act.configure( target )
-    local triple  = import("xmake.cfg.triple")
-    local info    = triple.get( target )
+    if os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then return end
+
+    local triple = import("cfg.triple")
+    local info   = triple.get( target )
     if not info then return end
 
-    local flags = import("xmake.cfg.flags")
+    local key = "__info_printed_" .. target:name()
+    if not import("core.project.config").get( key ) then
+        triple.print_info( target, info )
+        import("core.project.config").set( key, true )
+    end
+
+    local flags = import("cfg.flags")
     flags.apply( target, info )
 
     local project = import("core.project.project")
@@ -41,11 +49,5 @@ function act.run_process( target )
     end
 
     proc:close()
-end
-
-function act.print_info( target )
-    if os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then return end
-    local triple = import("xmake.cfg.triple")
-    triple.print_info( target, triple.get( target ))
 end
 

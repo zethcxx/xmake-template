@@ -10,6 +10,7 @@ includes("./xmake/actions.lua")
 
 --: Configs ---------------------------------------------
 add_repositories("local-repo ./xmake/")
+add_moduledirs("xmake")
 add_rules("vscode.compile_commands")
 
 --: Targets ---------------------------------------------
@@ -22,6 +23,5 @@ target( "main" )
     add_files( "app/main.cpp" )
 
     on_config     ( act.configure   )
-    before_prepare( act.print_info  )
     on_run        ( act.run_process )
 

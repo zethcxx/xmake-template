@@ -109,7 +109,7 @@ set_values("rtti",       true)   -- keep -frtti in release
 
 ### Compilation Info
 
-On every build the template prints detected toolchain info with ABI detection:
+During `xmake f` every target prints detected toolchain info with ABI detection:
 
 ```
 ┌[ main: build/linux/x86_64/release/exec ]
@@ -122,6 +122,10 @@ On every build the template prints detected toolchain info with ABI detection:
 ```
 
 The `abi` suffix (`gnu`, `msvc`, `android`, `musl`, etc.) is detected automatically from the target triple.
+For payload targets, an additional line shows the extracted `.bin` path and section.
+
+The info block is printed once per target on the first `xmake f` after `-c`.
+Subsequent builds skip it — no output interleaved with compilation.
 
 ### Linker Flags (non-MSVC)
 
@@ -205,11 +209,24 @@ touch compiler/linker flags directly.
 Set `payload.header` to generate an include file embedding the payload as hex bytes:
 
 ```lua
-set_values("payload.header", {"cxx"})           -- C++ header (default)
-set_values("payload.header", {"c"})             -- C header
-set_values("payload.header", {"cxx", "inc/"})   -- custom output dir relative to .bin
-set_values("payload.header", {"cxx", "${root}/inc/"})  -- absolute via ${root}/${build}
+set_values("payload.header", {"cxx"})                                       -- C++ header, default path
+set_values("payload.header", {"c"})                                         -- C header
+set_values("payload.header", {"cxx", "generated/my_payload"})               -- custom include path
+set_values("payload.header", {"cxx", "${root}/ext/inc/payload"})            -- absolute via ${root}
+set_values("payload.header", {"cxx", "${build}/custom/payload"})            -- via ${build}
 ```
+
+The second element of the array is the include path used in `#include`:
+
+| Setting | `#include` | File location |
+|---------|------------|---------------|
+| `{"cxx"}` | `#include "generated/payload.hpp"` | `<targetdir>/include/generated/payload.hpp` |
+| `{"cxx", "generated/my_payload"}` | `#include "generated/my_payload.hpp"` | `<targetdir>/include/generated/my_payload.hpp` |
+| `{"cxx", "${root}/ext/inc/payload"}` | `#include "${root}/ext/inc/payload.hpp"` | Outside build tree |
+| `{"c"}` | `#include "generated/payload.h"` | `<targetdir>/include/generated/payload.h` |
+
+All paths are relative to `<targetdir>/include/` unless they use `${root}` (project root)
+or `${build}` (target output directory).
 
 - **C output** (`.h`): `unsigned char name[] = { ... }; unsigned int name_size = N;`
 - **C++ output** (`.hpp`): `namespace name { consteval auto data() { ... } consteval std::size_t size() { ... } }`
@@ -224,8 +241,17 @@ constexpr std::array<unsigned char, 206> raw = {
 };
 ```
 
-The generated header is placed in `<bin-dir>/generated/` by default, and its directory
-is automatically injected into the loader's `includedirs` via `add_deps`.
+The include directory `<targetdir>/include/` is automatically added to any target
+with `add_deps("payload")` through `actions.lua`:
+
+```lua
+target("loader")
+    add_deps("payload")     -- << can #include "generated/payload.hpp"
+    add_files("src/main.cpp")
+```
+
+A placeholder header with empty data is generated during `xmake f` so the LSP never
+complains about a missing include. The real header overwrites it in `after_build`.
 
 #### Payload Binary Copy
 
@@ -262,6 +288,8 @@ set_xmakever("2.8.0")
 includes("./xmake/actions.lua")
 includes("./xmake/rules/compile_commands.lua")
 includes("./xmake/rules/payload_extract.lua")
+includes("./xmake/rules/payload_bin.lua")
+add_moduledirs("xmake")           -- enables import("cfg.triple"), import("cfg.flags")
 add_rules("vscode.compile_commands")
 
 target("app")
@@ -279,9 +307,8 @@ target("app")
 
     add_links("m")
 
-    on_config     ( act.configure   )
-    before_prepare( act.print_info  )
-    on_run        ( act.run_process )
+    on_config( act.configure   )
+    on_run   ( act.run_process )
 ```
 
 ## Project Structure
@@ -291,15 +318,17 @@ target("app")
 ├── xmake/
 │   ├── actions.lua             # Target lifecycle hooks
 │   ├── cfg/
-│   │   ├── triple.lua          # Toolchain detection
-│   │   └── flags.lua           # Flag pipeline
+│   │   ├── triple.lua          # Toolchain detection (import "cfg.triple")
+│   │   └── flags.lua           # Flag pipeline (import "cfg.flags")
 │   ├── packages/
 │   │   └── l/
 │   │       └── lbyte.stx/
 │   │           └── xmake.lua   # Local package repo
 │   └── rules/
 │       ├── compile_commands.lua
-│       └── payload_extract.lua
+│       ├── payload_header.lua    # Shared header generation (placeholder + real)
+│       ├── payload_extract.lua   # PE/ELF section extraction via objcopy
+│       └── payload_bin.lua       # Flat binary copy
 ├── app/
 │   └── main.cpp
 ├── install.sh

@@ -8,7 +8,7 @@ package("lbyte.stx")
     add_versions("v0.1.0", "v0.1.0")
     add_versions("v0.2.0", "v0.2.0")
 
-    add_configs("use_modules", { description = "Build C++ modules", default = false, type = "boolean" })
+    add_configs("use_modules",  { description = "Build C++ modules", default = false, type = "boolean" })
 
     on_load(function (package)
         package:add("includedirs", "include")
@@ -17,11 +17,15 @@ package("lbyte.stx")
         end
     end)
 
-    on_install(function (package)
-        os.cp("include", package:installdir())
-        if package:config("use_modules") then
-            os.cp("modules", package:installdir())
+    on_install( function( package )
+        local configs = {}
+        local includedir = package:installdir("include")
+
+        if package:config( "use_modules" ) then
+            configs.use_modules = true
         end
+
+        import("package.tools.xmake").install( package, configs, { includedirs = includedir })
     end)
 
     on_test(function (package)

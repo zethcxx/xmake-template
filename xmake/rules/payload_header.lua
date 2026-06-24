@@ -53,7 +53,7 @@ function write_placeholder(target)
     if not hdr or #hdr == 0 then return end
 
     local lang = hdr[1] or "cxx"
-    local relpath = hdr[2] or "generated/"
+    local relpath = hdr[2] or ("generated/" .. target:name())
     relpath = relpath:gsub("%${root}", os.projectdir())
 
     local targetdir = target:targetdir()
@@ -61,17 +61,23 @@ function write_placeholder(target)
         relpath = relpath:gsub("%${build}", targetdir)
     end
 
-    local outdir = targetdir and path.join(targetdir, relpath)
-    if not outdir then return end
+    local include_root = targetdir and path.join(targetdir, "include")
+    if not include_root then return end
+
+    local full_noext = path.join(include_root, relpath)
+    local outdir = path.directory(full_noext)
+    local basename = path.basename(full_noext)
+    local ext = lang == "c" and ".h" or ".hpp"
+    local header = full_noext .. ext
 
     os.mkdir(outdir)
     if not os.isdir(outdir) then
         os.execv("mkdir", {"-p", outdir})
     end
 
-    local basename = path.basename(target:values("payload.output") or target:name())
     _write_file(outdir, basename, lang, nil)
-    target:values_set("payload.generated_dir", outdir)
+    target:values_set("payload.generated_dir", include_root)
+    target:add("headerfiles", header)
 end
 
 function write_real(target, out, data)
@@ -79,18 +85,24 @@ function write_real(target, out, data)
     if not hdr or #hdr == 0 then return end
 
     local lang = hdr[1] or "cxx"
-    local relpath = hdr[2] or "generated/"
+    local relpath = hdr[2] or ("generated/" .. target:name())
     relpath = relpath:gsub("%${root}", os.projectdir())
     relpath = relpath:gsub("%${build}", path.directory(out))
 
-    local outdir = path.join(path.directory(out), relpath)
+    local include_root = path.join(path.directory(out), "include")
+
+    local full_noext = path.join(include_root, relpath)
+    local outdir = path.directory(full_noext)
+    local basename = path.basename(full_noext)
+    local ext = lang == "c" and ".h" or ".hpp"
+    local header = full_noext .. ext
 
     os.mkdir(outdir)
     if not os.isdir(outdir) then
         os.execv("mkdir", {"-p", outdir})
     end
 
-    local basename = path.basename(out)
     _write_file(outdir, basename, lang, data)
-    target:values_set("payload.generated_dir", outdir)
+    target:values_set("payload.generated_dir", include_root)
+    target:add("headerfiles", header)
 end

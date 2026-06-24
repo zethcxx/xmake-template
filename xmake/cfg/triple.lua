@@ -130,11 +130,10 @@ function print_info( target, info )
     end
 
     cprint( "${white}┌${#216}[ ${bright}%s${reset}${#216}: %s ]", target:name(), target:targetfile())
-    cprint( "${white}│${#223}    mode     : ${white}%s"         , info.mode       )
-    cprint( "${white}│${#223}    toolchain: ${white}%s ${#223}(${white}%s${#223}-abi)" , info.toolchain, info.abi )
-    cprint( "${white}│${#223}    compiler : ${white}%s"         , info.compiler   )
+    cprint( "${white}│${#223}    toolchain: ${white}%s ${#223}-${white} %s ${#223}(${white}%s${#223}-abi)" , info.toolchain, info.compiler, info.abi )
     cprint( "${white}│${#223}    triple   : ${white}%s"         , info.raw        )
     cprint( "${white}│${#223}    march    : ${white}%s"         , march           )
+    cprint( "${white}│${#223}    mode     : ${white}%s"         , info.mode       )
     local rules = target:get("rules")
     if rules then
         for _, r in ipairs(rules) do
