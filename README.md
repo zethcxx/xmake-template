@@ -9,6 +9,7 @@ strict diagnostics, zero-bloat, and **ABI-aware multi-architecture** support.
 
 ## Key Features
 
+* **`.lldbinit` generation:** Auto-generates `build/lldb/<target>.lldbinit` with `target.source-map` for MSVC debug builds — enables debugging cross-compiled binaries with lldb on Windows.
 * **Multi-ABI:** Detects `msvc`, `android`, `gnu`, `musl`, `cygnus` from the target triple.
 * **Architecture presets:** Separate `buildtype` tables for `x86_64`, `arm64`, and `arm32`.
 * **Hardening:** Stack protectors, RELRO, NX, ASLR, `--as-needed`, `separate-code`.
@@ -49,7 +50,7 @@ The `get_target_value()` pipeline reads values in this priority:
 | `subsystem`            | `"CONSOLE"`        | `CONSOLE`, `WINDOWS`, `NATIVE`, `POSIX` (Windows)     |
 | `entry`                | —                  | Custom entry point                                    |
 | `noentry`              | `false`            | No entry point (mutually exclusive with `entry`)      |
-| `payload.freestanding` | `false`            | Freestanding mode (nostdlib, no stack protector, Oz)  |
+| `freestanding`         | `false`            | Freestanding mode (nostdlib, no stack protector, Oz)  |
 | `stack_protector`      | `false`            | `-fstack-protector-strong` in release                 |
 | `optimize`             | auto               | `size` (-Oz/Os), `fast` (-O2), `faster` (-O3), or raw |
 | `march`                | *(from buildtype)* | Override `-march` individually                        |
@@ -124,8 +125,10 @@ During `xmake f` every target prints detected toolchain info with ABI detection:
 The `abi` suffix (`gnu`, `msvc`, `android`, `musl`, etc.) is detected automatically from the target triple.
 For payload targets, an additional line shows the extracted `.bin` path and section.
 
-The info block is printed once per target on the first `xmake f` after `-c`.
-Subsequent builds skip it — no output interleaved with compilation.
+The info block is printed once per toolchain/mode combination on the first `xmake f`.
+A marker file in the output directory prevents re-printing during `xmake build` or
+`xmake run`. Running `xmake f -c` clears the marker, so info appears again on the
+next configure.
 
 ### Linker Flags (non-MSVC)
 
@@ -142,6 +145,23 @@ ABI detection works with any xmake toolchain. Just set the platform/arch/toolcha
 xmake f -p android -a arm64-v8a -m release
 xmake
 ```
+
+#### Source-map for MSVC debug builds
+
+When cross-compiling with an MSVC-compatible toolchain (e.g., wincross) in debug mode,
+the template generates a `.lldbinit` file at `build/lldb/<target>.lldbinit` during
+`xmake f`. This file contains a `target.source-map` directive that maps the Linux
+build root to the local project root, enabling source-level debugging with lldb on
+Windows after copying the binary:
+
+```powershell
+# On the target Windows machine:
+lldb -s build/lldb/main.lldbinit build\wincross\x86_64\debug\exec.exe
+```
+
+The source root is saved as `.xmake/.source_root_linux` on the first configure
+and reused on Windows to produce the correct path mapping. On native Windows
+builds the map is a no-op (both paths are local).
 
 ### Local Package Repository
 
@@ -191,7 +211,7 @@ alongside the binary. The output path is shown in the target info block:
 | Value                  | Default   | Description                                      |
 |------------------------|-----------|--------------------------------------------------|
 | `payload.section`      | `".text"` | Section name to extract                          |
-| `payload.freestanding` | `true`    | Freestanding mode (nostdlib, -O2, no stack protector) |
+| `freestanding`         | `true`    | Freestanding mode (nostdlib, -O2, no stack protector) |
 | `optimize`             | auto      | Override default optimization level (see Per-target Keys) |
 | `payload.extract`      | `true`    | Enable/disable extraction                        |
 | `payload.align`        | —         | Pad `.bin` to alignment boundary                 |
@@ -285,11 +305,8 @@ set_project ("MyProject")
 set_version ("1.0.0")
 set_xmakever("2.8.0")
 
-includes("./xmake/actions.lua")
-includes("./xmake/rules/compile_commands.lua")
-includes("./xmake/rules/payload_extract.lua")
-includes("./xmake/rules/payload_bin.lua")
-add_moduledirs("xmake")           -- enables import("cfg.triple"), import("cfg.flags")
+includes("./xmake/rules/*.lua")
+add_moduledirs("./xmake/modules/")  -- enables import("cfg.triple"), import("cfg.flags")
 add_rules("vscode.compile_commands")
 
 target("app")
@@ -307,8 +324,8 @@ target("app")
 
     add_links("m")
 
-    on_config( act.configure   )
-    on_run   ( act.run_process )
+    on_config( "actions.configure" )
+    on_run   ( "actions.run_process" )
 ```
 
 ## Project Structure
@@ -316,10 +333,13 @@ target("app")
 ```
 ├── xmake.lua
 ├── xmake/
-│   ├── actions.lua             # Target lifecycle hooks
-│   ├── cfg/
-│   │   ├── triple.lua          # Toolchain detection (import "cfg.triple")
-│   │   └── flags.lua           # Flag pipeline (import "cfg.flags")
+│   ├── modules/
+│   │   ├── actions.lua         # Target lifecycle hooks
+│   │   ├── cfg/
+│   │   │   ├── triple.lua      # Toolchain detection (import "cfg.triple")
+│   │   │   └── flags.lua       # Flag pipeline (import "cfg.flags")
+│   │   └── utils/
+│   │       └── strings.lua     # String helpers (indent cleanup)
 │   ├── packages/
 │   │   └── l/
 │   │       └── lbyte.stx/
@@ -331,6 +351,9 @@ target("app")
 │       └── payload_bin.lua       # Flat binary copy
 ├── app/
 │   └── main.cpp
+├── build/
+│   └── lldb/
+│       └── <target>.lldbinit   # Source-map for MSVC debug (auto-generated)
 ├── install.sh
 ├── install.ps1
 └── README.md

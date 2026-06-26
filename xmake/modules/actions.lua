@@ -1,18 +1,21 @@
-act = {}
+import("cfg.triple"          )
+import("cfg.flags"           )
+import("core.project.project")
+import("core.base.process"   )
 
-function act.configure( target )
+function configure(target)
     if os.getenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR") then return end
 
-    local triple = import("cfg.triple")
-    local info   = triple.get( target )
+    local info = triple.get(target)
     if not info then return end
 
-    triple.print_info( target, info )
+    local marker = path.join(path.directory(target:targetfile()), ".info_printed")
+    if not os.isfile(marker) then
+        triple.print_info(target, info)
+        io.writefile(marker, "")
+    end
+    flags.apply(target, info)
 
-    local flags = import("cfg.flags")
-    flags.apply( target, info )
-
-    local project = import("core.project.project")
     for _, depname in ipairs(target:get("deps") or {}) do
         local dep = project.target(depname)
         if dep then
@@ -25,6 +28,7 @@ function act.configure( target )
 
     local xmake_dir = path.join(os.projectdir(), ".xmake")
     os.mkdir(xmake_dir)
+
     local root_file = path.join(xmake_dir, ".source_root_linux")
     if not os.isfile(root_file) and not is_host("windows") then
         io.writefile(root_file, os.projectdir())
@@ -34,19 +38,24 @@ function act.configure( target )
         local lldb_dir = path.join(os.projectdir(), "build", "lldb")
         os.mkdir(lldb_dir)
         local src_root = os.isfile(root_file) and io.readfile(root_file):trim() or os.projectdir()
-        io.writefile(path.join(lldb_dir, target:name() .. ".lldbinit"),
-            "settings set target.source-map " .. src_root .. " " .. os.projectdir() .. "\n")
+        io.writefile(
+            path.join(lldb_dir, target:name() .. ".lldbinit"),
+            "settings set target.source-map "
+                .. src_root
+                .. " "
+                .. os.projectdir()
+                .. "\n"
+        )
     end
 end
 
-function act.run_process( target )
-    local process = import("core.base.process")
+function run_process(target)
     local program = target:targetfile()
     local args    = target:get("runargs") or {}
 
     cprint("${bright green}[Running: " .. program .. "]")
 
-    local proc = process.openv( program, args, { detach = true })
+    local proc = process.openv(program, args, { detach = true })
     local ok, status = proc:wait()
 
     if ok < 0 then
@@ -61,6 +70,4 @@ function act.run_process( target )
 
     proc:close()
 end
-
-
 

@@ -8,7 +8,7 @@ rule("payload_extract")
         local defaults = {
             ["payload.extract"]      = true,
             ["payload.section"]      = ".text",
-            ["payload.freestanding"] = true,
+            ["freestanding"] = true,
         }
         for key, val in pairs(defaults) do
             if target:values(key) == nil then

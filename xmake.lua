@@ -3,15 +3,19 @@ set_project ("Testing")
 set_version ("0.1.0"  )
 set_xmakever("2.8.0"  )
 
+
 --: Includes --------------------------------------------
-includes("./xmake/rules/compile_commands.lua")
-includes("./xmake/rules/payload_extract.lua")
-includes("./xmake/actions.lua")
+includes("./xmake/rules/*.lua") -- or only rule specify
+
 
 --: Configs ---------------------------------------------
 add_repositories("local-repo ./xmake/")
-add_moduledirs("xmake")
+add_moduledirs("./xmake/modules/")
+
+
+--: Rules -----------------------------------------------
 add_rules("vscode.compile_commands")
+
 
 --: Targets ---------------------------------------------
 target( "main" )
@@ -22,6 +26,6 @@ target( "main" )
 
     add_files( "app/main.cpp" )
 
-    on_config    ( act.configure   )
-    on_run       ( act.run_process )
+    on_config( "actions.configure"   )
+    on_run   ( "actions.run_process" )
 

@@ -1,8 +1,10 @@
-import( "core.project.config" )
+import("core.project.config")
 
 local function detect_compiler( cc )
     if not cc then return "unknown" end
+
     local compiler = "unknown"
+
     try {
         function()
             local out = os.iorunv( cc, { "--version" }):lower()
@@ -13,9 +15,9 @@ local function detect_compiler( cc )
             end
         end
     }
+
     return compiler
 end
-
 
 local function find_target_flag( toolchain, target )
     if toolchain then
@@ -41,7 +43,6 @@ local function find_target_flag( toolchain, target )
     return nil
 end
 
-
 local function detect_triple( target, cc, compiler, toolchain )
     local flag_target = find_target_flag( toolchain, target )
     if flag_target then return flag_target end
@@ -65,7 +66,6 @@ local function detect_triple( target, cc, compiler, toolchain )
     return arch .. "-unknown-" .. plat .. "-gnu"
 end
 
-
 local function detect_os( raw_triple )
     local parts = string.split( raw_triple, "-" )
     local n = #parts
@@ -77,17 +77,17 @@ local function detect_os( raw_triple )
     return "unknown"
 end
 
-
 local function detect_abi( raw_triple )
     if not raw_triple then return "gnu" end
-    if     raw_triple:find("msvc")    then return "msvc"
+
+    if     raw_triple:find("msvc"   ) then return "msvc"
     elseif raw_triple:find("android") then return "android"
-    elseif raw_triple:find("musl")    then return "musl"
-    elseif raw_triple:find("cygnus")  then return "cygnus"
+    elseif raw_triple:find("musl"   ) then return "musl"
+    elseif raw_triple:find("cygnus" ) then return "cygnus"
     end
+
     return "gnu"
 end
-
 
 function get( target )
     local toolchain = target:toolchain( config.get( "toolchain" )) or target:toolchains()[1]
@@ -118,7 +118,6 @@ function get( target )
 
     return info
 end
-
 
 function print_info( target, info )
     if not info then return end

@@ -6,16 +6,16 @@ local SUBSYSTEMS = table.join(
 )
 
 local BUILDTYPES_X86_64 = {
-    native  = { march = "native",       mtune = "native"  },
+    native  = { march = "native"   ,    mtune = "native"  },
     generic = { march = "x86-64-v2",    mtune = "generic" },
     legacy  = { march = "x86-64-v1",    mtune = "generic" },
     modern  = { march = "x86-64-v4",    mtune = "generic" },
 }
 
 local BUILDTYPES_ARM64 = {
-    native  = { march = "native",     mtune = "native"  },
-    generic = { march = "armv8-a",    mtune = "generic" },
-    legacy  = { march = "armv8-a",    mtune = "generic" },
+    native  = { march = "native"   ,  mtune = "native"  },
+    generic = { march = "armv8-a"  ,  mtune = "generic" },
+    legacy  = { march = "armv8-a"  ,  mtune = "generic" },
     modern  = { march = "armv8.5-a",  mtune = "generic" },
 }
 
@@ -27,19 +27,19 @@ local BUILDTYPES_ARM32 = {
 }
 
 local function reset_flags(target)
-    target:set("cflags",   {})
+    target:set("cflags"  , {})
     target:set("cxxflags", {})
-    target:set("cxflags",  {})
-    target:set("asflags",  {})
-    target:set("ldflags",  {})
-    target:set("shflags",  {})
-    target:set("links",    {})
+    target:set("cxflags" , {})
+    target:set("asflags" , {})
+    target:set("ldflags" , {})
+    target:set("shflags" , {})
+    target:set("links"   , {})
 end
 
 
 local function is_clang  ( info ) return info.compiler == "clang" end
 local function is_gcc    ( info ) return info.compiler == "gcc"   end
-local function is_msvc   ( info ) return info.abi == "msvc" end
+local function is_msvc   ( info ) return info.abi      == "msvc"  end
 
 local function is_x86_64(info)
     return info.arch and info.arch:find("x86") ~= nil and info.is_x64
@@ -54,9 +54,11 @@ local function get_target_value(target, key, default)
     if type(config_val) == "string" then
         return config_val
     end
+
     if config_val == true then
         return true
     end
+
     local val = target:values(key)
     if val ~= nil then
         if type(val) == "table" then
@@ -64,15 +66,17 @@ local function get_target_value(target, key, default)
         end
         return val
     end
+
     local prop = target:get(key)
     if prop ~= nil then
         return prop
     end
+
     return default
 end
 
 local function is_freestanding(target)
-    return get_target_value(target, "payload.freestanding", false)
+    return get_target_value(target, "freestanding", false)
 end
 
 local function add_to(target)
@@ -254,7 +258,7 @@ local function apply_release_flags( target, info )
     if not is_mode("release") then return end
     local f = add_to(target)
 
-    local is_freestanding = is_freestanding(target)
+    local is_freestanding = is_freestanding (target)
     local stack_protector = get_target_value(target, "stack_protector", true )
     local exceptions      = get_target_value(target, "exceptions"     , false)
     local rtti            = get_target_value(target, "rtti"           , false)
@@ -273,6 +277,7 @@ local function apply_release_flags( target, info )
     if not exceptions then
         f.cxflags({ "-fno-exceptions" })
     end
+
     if not rtti then
         f.cxflags({ "-fno-rtti" })
     end
@@ -425,14 +430,14 @@ end
 
 function apply( target, info )
     local saved = {
-        cxflags  = target:get("cxflags"),
-        cflags   = target:get("cflags"),
+        cxflags  = target:get("cxflags" ),
+        cflags   = target:get("cflags"  ),
         cxxflags = target:get("cxxflags"),
-        asflags  = target:get("asflags"),
-        ldflags  = target:get("ldflags"),
-        shflags  = target:get("shflags"),
-        links    = target:get("links"),
-        defines  = target:get("defines"),
+        asflags  = target:get("asflags" ),
+        ldflags  = target:get("ldflags" ),
+        shflags  = target:get("shflags" ),
+        links    = target:get("links"   ),
+        defines  = target:get("defines" ),
     }
 
     reset_flags( target )
@@ -442,12 +447,12 @@ function apply( target, info )
     apply_release_flags( target, info )
     apply_linker       ( target, info )
 
-    target:add("cxflags",  saved.cxflags  or {}, {force = true})
-    target:add("cflags",   saved.cflags   or {}, {force = true})
+    target:add("cxflags" , saved.cxflags  or {}, {force = true})
+    target:add("cflags"  , saved.cflags   or {}, {force = true})
     target:add("cxxflags", saved.cxxflags or {}, {force = true})
-    target:add("asflags",  saved.asflags  or {}, {force = true})
-    target:add("ldflags",  saved.ldflags  or {}, {force = true})
-    target:add("shflags",  saved.shflags  or {}, {force = true})
+    target:add("asflags" , saved.asflags  or {}, {force = true})
+    target:add("ldflags" , saved.ldflags  or {}, {force = true})
+    target:add("shflags" , saved.shflags  or {}, {force = true})
 
     if saved.links then
         for _, lib in ipairs(saved.links) do
