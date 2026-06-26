@@ -22,6 +22,6 @@ target( "main" )
 
     add_files( "app/main.cpp" )
 
-    on_config     ( act.configure   )
-    on_run        ( act.run_process )
+    on_config    ( act.configure   )
+    on_run       ( act.run_process )
 

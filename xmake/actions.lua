@@ -7,11 +7,7 @@ function act.configure( target )
     local info   = triple.get( target )
     if not info then return end
 
-    local key = "__info_printed_" .. target:name()
-    if not import("core.project.config").get( key ) then
-        triple.print_info( target, info )
-        import("core.project.config").set( key, true )
-    end
+    triple.print_info( target, info )
 
     local flags = import("cfg.flags")
     flags.apply( target, info )
@@ -25,6 +21,21 @@ function act.configure( target )
                 target:add("includedirs", gen_dir, {force = true})
             end
         end
+    end
+
+    local xmake_dir = path.join(os.projectdir(), ".xmake")
+    os.mkdir(xmake_dir)
+    local root_file = path.join(xmake_dir, ".source_root_linux")
+    if not os.isfile(root_file) and not is_host("windows") then
+        io.writefile(root_file, os.projectdir())
+    end
+
+    if info.abi == "msvc" and is_mode("debug") then
+        local lldb_dir = path.join(os.projectdir(), "build", "lldb")
+        os.mkdir(lldb_dir)
+        local src_root = os.isfile(root_file) and io.readfile(root_file):trim() or os.projectdir()
+        io.writefile(path.join(lldb_dir, target:name() .. ".lldbinit"),
+            "settings set target.source-map " .. src_root .. " " .. os.projectdir() .. "\n")
     end
 end
 
@@ -50,4 +61,6 @@ function act.run_process( target )
 
     proc:close()
 end
+
+
 

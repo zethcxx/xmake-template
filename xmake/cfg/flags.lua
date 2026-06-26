@@ -377,6 +377,7 @@ local function apply_linker( target, info )
             f.ldflags({
                 "-Wl,/DEBUG",
                 "-Wl,/INCREMENTAL",
+                "-Wl,/PDBALTPATH:%_PDB%",
             })
 
             if noentry then
