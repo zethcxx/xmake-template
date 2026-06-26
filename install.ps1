@@ -9,14 +9,19 @@ $Entries = @(
     "xmake/cfg/triple.lua",
     "xmake/cfg/flags.lua",
     "xmake/rules/compile_commands.lua",
+    "xmake/rules/payload_extract.lua",
+    "xmake/rules/payload_bin.lua",
+    "xmake/rules/payload_header.lua",
+    "xmake/packages/l/lbyte.stx/xmake.lua",
     "xmake/actions.lua",
     "app/main.cpp"
 )
 
 Write-Host "[*] Creating project structure: $ProjectName" -ForegroundColor Gray
-New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake/cfg")   | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake/rules") | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "app")         | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake/cfg")               | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake/rules")             | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "xmake/packages/l/lbyte.stx") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectName "app")                     | Out-Null
 
 foreach ($entry in $Entries) {
     $url = "$BaseUrl/$entry"
