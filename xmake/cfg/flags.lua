@@ -238,6 +238,7 @@ local function apply_debug_flags( target, info )
     }, { force = true })
 
     if is_msvc( info ) then
+        f.cxflags({ "-gcodeview" })
         target:add("defines", {
             "_ITERATOR_DEBUG_LEVEL=2",
             "_SECURE_SCL=1",
