@@ -3,6 +3,12 @@ set_project ("Testing")
 set_version ("0.1.0"  )
 set_xmakever("2.8.0"  )
 
+--: Options ---------------------------------------------
+option("pinfo")
+    set_default(false)
+    set_showmenu(true)
+option_end()
+
 
 --: Includes --------------------------------------------
 includes("./xmake/rules/*.lua") -- or only rule specify
@@ -28,4 +34,3 @@ target( "main" )
 
     on_config( "actions.configure"   )
     on_run   ( "actions.run_process" )
-

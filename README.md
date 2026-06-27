@@ -130,6 +130,11 @@ A marker file in the output directory prevents re-printing during `xmake build` 
 `xmake run`. Running `xmake f -c` clears the marker, so info appears again on the
 next configure.
 
+To force printing on every configure (ignoring the marker), pass `--pinfo=y`:
+```sh
+xmake f --pinfo=y
+```
+
 ### Linker Flags (non-MSVC)
 
 | Mode    | Flags                                                                                                                            |
