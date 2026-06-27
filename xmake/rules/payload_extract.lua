@@ -88,5 +88,18 @@ rule("payload_extract")
                 import("payload_header").write_real(target, out, data)
             end
         end
+
+        -- Touch sources of dependent targets to force recompilation with the real header
+        local project = import("core.project.project")
+        for _, tgt in ipairs(project.targets()) do
+            if tgt ~= target then
+                local deps = tgt:get("deps")
+                if deps and table.contains(deps, target:name()) then
+                    for _, src in ipairs(tgt:sourcefiles()) do
+                        os.touch(src)
+                    end
+                end
+            end
+        end
     end)
 
