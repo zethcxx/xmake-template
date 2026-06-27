@@ -1,3 +1,5 @@
+local ustr = import("utils.strings")
+
 function _format_hex(data)
     local parts = {}
     for i = 1, #data do
@@ -6,7 +8,7 @@ function _format_hex(data)
     local lines = {}
     for i = 1, #parts, 16 do
         local chunk = table.concat(parts, ", ", i, math.min(i + 15, #parts))
-        lines[#lines + 1] = "            " .. chunk
+        lines[#lines + 1] = "\t\t\t" .. chunk
     end
     return table.concat(lines, ",\n")
 end
@@ -18,29 +20,31 @@ function _write_file(outdir, basename, lang, data)
     local hexstr = size > 0 and _format_hex(data) or ""
 
     if lang == "c" then
-        local body = size > 0 and ("\n" .. hexstr .. "\n") or ""
-        io.writefile(header, string.format([[
+        local body = size > 0 and (hexstr .. "\n\t") or ""
+        io.writefile(header, ustr.clean_template(string.format([[
 #pragma once
 
-unsigned char %s[] = {%s};
+unsigned char %s[] = {
+\t%s
+};
 unsigned int %s_size = %d;
-]], basename, body, basename, size))
+]], basename, body, basename, size)))
     else
-        local body = size > 0 and ("\n" .. hexstr .. "\n        ") or ""
-        io.writefile(header, string.format([[
+        local body = size > 0 and ("\n" .. hexstr .. "\n\t\t") or ""
+        io.writefile(header, ustr.clean_template(string.format([[
 #pragma once
 
 #include <array>
 #include <cstddef>
 
 namespace %s {
-    consteval auto data() {
-        constexpr std::array<unsigned char, %d> raw = {%s};
-        return raw;
-    }
-    consteval std::size_t size() { return %d; }
+\tconsteval auto data() {
+\t\tconstexpr std::array<unsigned char, %d> raw = {%s};
+\t\treturn raw;
+\t}
+\tconsteval std::size_t size() { return %d; }
 }
-]], basename, size, body, size))
+]], basename, size, body, size)))
     end
 end
 
@@ -87,9 +91,14 @@ function write_real(target, out, data)
     local lang = hdr[1] or "cxx"
     local relpath = hdr[2] or ("generated/" .. target:name())
     relpath = relpath:gsub("%${root}", os.projectdir())
-    relpath = relpath:gsub("%${build}", path.directory(out))
 
-    local include_root = path.join(path.directory(out), "include")
+    local targetdir = target:targetdir()
+    if targetdir then
+        relpath = relpath:gsub("%${build}", targetdir)
+    end
+
+    local include_root = targetdir and path.join(targetdir, "include")
+    if not include_root then return end
 
     local full_noext = path.join(include_root, relpath)
     local outdir = path.directory(full_noext)
@@ -106,3 +115,4 @@ function write_real(target, out, data)
     target:values_set("payload.generated_dir", include_root)
     target:add("headerfiles", header)
 end
+
