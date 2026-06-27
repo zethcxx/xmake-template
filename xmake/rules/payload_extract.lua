@@ -89,7 +89,6 @@ rule("payload_extract")
             end
         end
 
-        -- Touch sources of dependent targets to force recompilation with the real header
         local project = import("core.project.project")
         for _, tgt in ipairs(project.targets()) do
             if tgt ~= target then
