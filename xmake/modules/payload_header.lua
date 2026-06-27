@@ -1,4 +1,4 @@
-local ustr = import("utils.strings")
+local utils = import("utils.strings")
 
 function _format_hex(data)
     local parts = {}
@@ -21,30 +21,34 @@ function _write_file(outdir, basename, lang, data)
 
     if lang == "c" then
         local body = size > 0 and (hexstr .. "\n\t") or ""
-        io.writefile(header, ustr.clean_template(string.format([[
-#pragma once
+        local clean_c_template = utils.clean_template([[
+            #pragma once
 
-unsigned char %s[] = {
-\t%s
-};
-unsigned int %s_size = %d;
-]], basename, body, basename, size)))
+            unsigned char %s[] = {
+                %s
+            };
+
+            unsigned int %s_size = %d;
+        ]])
+        io.writefile(header, string.format(clean_c_template, basename, body, basename, size))
     else
         local body = size > 0 and ("\n" .. hexstr .. "\n\t\t") or ""
-        io.writefile(header, ustr.clean_template(string.format([[
-#pragma once
+        local clean_cpp_template = utils.clean_template([[
+            #pragma once
 
-#include <array>
-#include <cstddef>
+            #include <array>
+            #include <cstddef>
 
-namespace %s {
-\tconsteval auto data() {
-\t\tconstexpr std::array<unsigned char, %d> raw = {%s};
-\t\treturn raw;
-\t}
-\tconsteval std::size_t size() { return %d; }
-}
-]], basename, size, body, size)))
+            namespace %s {
+                consteval auto data() {
+                    constexpr std::array<unsigned char, %d> raw = {%s};
+                    return raw;
+                }
+
+                consteval std::size_t size(){ return %d; }
+            }
+        ]])
+        io.writefile(header, string.format(clean_cpp_template, basename, size, body, size))
     end
 end
 
