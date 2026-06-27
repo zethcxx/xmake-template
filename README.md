@@ -22,12 +22,12 @@ strict diagnostics, zero-bloat, and **ABI-aware multi-architecture** support.
 
 ### Unix (Linux/macOS)
 ```sh
-curl -sSL https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.sh | sh # -s -- <project_name>
+curl -sSL https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.sh | bash # -s -- <project_name>
 ```
 
 ### Windows (Powershell)
 ```sh
-powershell -Command "& { $(iwr -useb https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.ps1) }" # '<project_name>'"
+powershell -Command "& { $(iwr -useb https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.ps1) '.' }" # '.' or <project_name>
 ```
 
 ## Configuration
