@@ -1,5 +1,7 @@
 rule("payload_extract")
     on_config(function(target)
+        target:set("policy", "build.fence", true)
+
         if target:values("payload.objcopy") == nil then
             local tool = import("lib.detect.find_tool")
             local found = tool("llvm-objcopy") or tool("objcopy") or tool("gobjcopy")
@@ -86,18 +88,6 @@ rule("payload_extract")
                 local data = f:read("*all")
                 f:close()
                 import("payload_header").write_real(target, out, data)
-            end
-        end
-
-        local project = import("core.project.project")
-        for _, tgt in ipairs(project.targets()) do
-            if tgt ~= target then
-                local deps = tgt:get("deps")
-                if deps and table.contains(deps, target:name()) then
-                    for _, src in ipairs(tgt:sourcefiles()) do
-                        os.touch(src)
-                    end
-                end
             end
         end
     end)

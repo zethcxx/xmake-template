@@ -78,6 +78,9 @@ function write_placeholder(target)
     local ext = lang == "c" and ".h" or ".hpp"
     local header = full_noext .. ext
 
+    target:add("includedirs", include_root, {interface = true})
+    target:values_set("payload.generated_dir", include_root)
+
     if os.isfile(header) then return end
 
     os.mkdir(outdir)
@@ -86,8 +89,6 @@ function write_placeholder(target)
     end
 
     _write_file(outdir, basename, lang, nil)
-    target:add("includedirs", include_root, {interface = true})
-    target:values_set("payload.generated_dir", include_root)
     target:add("headerfiles", header)
 end
 
