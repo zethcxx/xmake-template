@@ -86,6 +86,7 @@ function write_placeholder(target)
     end
 
     _write_file(outdir, basename, lang, nil)
+    target:add("includedirs", include_root, {interface = true})
     target:values_set("payload.generated_dir", include_root)
     target:add("headerfiles", header)
 end
@@ -118,6 +119,7 @@ function write_real(target, out, data)
     end
 
     _write_file(outdir, basename, lang, data)
+    target:add("includedirs", include_root, {interface = true})
     target:values_set("payload.generated_dir", include_root)
     target:add("headerfiles", header)
 end
