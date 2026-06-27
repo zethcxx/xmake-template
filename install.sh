@@ -1,36 +1,44 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -e
 
 PROJECT_NAME="${1:-.}"
 
-mkdir -p "$PROJECT_NAME/xmake/cfg" \
-         "$PROJECT_NAME/xmake/rules" \
-         "$PROJECT_NAME/xmake/packages/l/lbyte.stx" \
-         "$PROJECT_NAME/app"
+mkdir -p "$PROJECT_NAME"
+cd "$PROJECT_NAME"
 
 echo "[*] Creating project structure: $PROJECT_NAME"
 
 BASE_URL="https://raw.githubusercontent.com/zethcxx/xmake-template/main"
 ENTRIES=(
     "xmake.lua"
-    "xmake/cfg/triple.lua"
-    "xmake/cfg/flags.lua"
-    "xmake/rules/compile_commands.lua"
-    "xmake/rules/payload_extract.lua"
-    "xmake/rules/payload_bin.lua"
-    "xmake/rules/payload_header.lua"
+
+    "xmake/modules/actions.lua"
+    "xmake/modules/cfg/flags.lua"
+    "xmake/modules/cfg/triple.lua"
+    "xmake/modules/payload_header.lua"
+    "xmake/modules/utils/strings.lua"
+
     "xmake/packages/l/lbyte.stx/xmake.lua"
-    "xmake/actions.lua"
+
+    "xmake/rules/compile_commands.lua"
+    "xmake/rules/payload_bin.lua"
+    "xmake/rules/payload_extract.lua"
+
     "app/main.cpp"
 )
 
-cd "$PROJECT_NAME"
-
 for entry in "${ENTRIES[@]}"
 do
+    DIR=$(dirname ${entry})
+
+    if [[ $DIR != "." && ! -d $DIR ]] then
+        mkdir -p "$DIR"
+    fi
+
     echo "[*] Downloading: $entry"
     wget -q "$BASE_URL/$entry" -O "$entry"
 done
 
 echo ""
 echo "[✔] Environment initialized successfully."
+
