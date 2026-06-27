@@ -13,6 +13,8 @@ function configure(target)
     if not os.isfile(marker) then
         triple.print_info(target, info)
         io.writefile(marker, "")
+    elseif import("core.base.option").get("pinfo") then
+        triple.print_info(target, info)
     end
     flags.apply(target, info)
 

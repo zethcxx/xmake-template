@@ -8,7 +8,7 @@ function _format_hex(data)
     local lines = {}
     for i = 1, #parts, 16 do
         local chunk = table.concat(parts, ", ", i, math.min(i + 15, #parts))
-        lines[#lines + 1] = "\t\t\t" .. chunk
+        lines[#lines + 1] = "            " .. chunk
     end
     return table.concat(lines, ",\n")
 end
@@ -20,7 +20,7 @@ function _write_file(outdir, basename, lang, data)
     local hexstr = size > 0 and _format_hex(data) or ""
 
     if lang == "c" then
-        local body = size > 0 and (hexstr .. "\n\t") or ""
+        local body = size > 0 and (hexstr .. "\n    ") or ""
         local clean_c_template = utils.clean_template([[
             #pragma once
 
@@ -32,7 +32,7 @@ function _write_file(outdir, basename, lang, data)
         ]])
         io.writefile(header, string.format(clean_c_template, basename, body, basename, size))
     else
-        local body = size > 0 and ("\n" .. hexstr .. "\n\t\t") or ""
+        local body = size > 0 and ("\n" .. hexstr .. "\n        ") or ""
         local clean_cpp_template = utils.clean_template([[
             #pragma once
 
