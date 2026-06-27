@@ -1,23 +1,9 @@
 rule("payload_extract")
     on_config(function(target)
         if target:values("payload.objcopy") == nil then
-            local triple = import("cfg.triple").get(target)
-            local find_program = import("lib.detect.find_program")
-
-            local objcopy
-            if triple and triple.abi == "msvc" then
-                -- PE/COFF: prefer llvm-objcopy (GNU objcopy can't dump custom sections)
-                objcopy = find_program("llvm-objcopy")
-                    or find_program("objcopy")
-                    or find_program("gobjcopy")
-                    or "llvm-objcopy"
-            else
-                -- ELF: any objcopy works
-                objcopy = find_program("objcopy")
-                    or find_program("gobjcopy")
-                    or "objcopy"
-            end
-            target:values_set("payload.objcopy", objcopy)
+            local tool = import("lib.detect.find_tool")
+            local found = tool("llvm-objcopy") or tool("objcopy") or tool("gobjcopy")
+            target:values_set("payload.objcopy", found and found.program or "llvm-objcopy")
         end
         local defaults = {
             ["payload.extract"]      = true,
