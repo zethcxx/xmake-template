@@ -30,7 +30,7 @@ target( "main" )
     set_kind     ("binary")
     set_basename ("exec"  )
 
-    add_files( "app/main.cpp" )
+    add_files( "src/main.cpp" )
 
     on_config( "actions.configure"   )
     on_run   ( "actions.run_process" )
