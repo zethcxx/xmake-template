@@ -7,6 +7,7 @@ package("lbyte.stx")
     add_versions("main", "main")
     add_versions("v0.1.0", "v0.1.0")
     add_versions("v0.2.0", "v0.2.0")
+    add_versions("v0.2.1", "v0.2.1")
 
     add_configs("use_modules",  { description = "Build C++ modules", default = false, type = "boolean" })
 
@@ -37,3 +38,4 @@ package("lbyte.stx")
         ]]}, { configs = { languages = "cxx23" } }))
     end)
 package_end()
+
