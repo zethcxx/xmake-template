@@ -24,7 +24,7 @@ ENTRIES=(
     "xmake/rules/payload_bin.lua"
     "xmake/rules/payload_extract.lua"
 
-    "app/main.cpp"
+    "src/main.cpp"
 )
 
 for entry in "${ENTRIES[@]}"
