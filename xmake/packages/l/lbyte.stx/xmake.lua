@@ -1,5 +1,4 @@
 package("lbyte.stx")
-    set_kind("library", {headeronly = true})
     set_homepage("https://github.com/zethcxx/stx")
     set_description("C++23 Systems Toolbelt")
 
@@ -8,6 +7,7 @@ package("lbyte.stx")
     add_versions("v0.1.0", "v0.1.0")
     add_versions("v0.2.0", "v0.2.0")
     add_versions("v0.2.1", "v0.2.1")
+    add_versions("v0.3.0", "v0.3.0")
 
     add_configs("use_modules",  { description = "Build C++ modules", default = false, type = "boolean" })
 
@@ -15,6 +15,9 @@ package("lbyte.stx")
         package:add("includedirs", "include")
         if package:config("use_modules") then
             package:add("cxxmodules", "modules/stx/*.cppm")
+            package:kind("library", {modulesonly = true})
+        else
+            package:kind("library", {headeronly =  true})
         end
     end)
 

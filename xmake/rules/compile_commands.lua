@@ -1,11 +1,18 @@
 option("compile-commands")
-    set_default(false)
+    set_default(true)
     set_showmenu(true)
     set_description("Generate compile_commands.json after configuration")
 option_end()
 
+local _generated = false
+
 rule("vscode.compile_commands")
     after_config(function()
+        if _generated then
+            return
+        end
+        _generated = true
+
         if not has_config("compile-commands") then
             return
         end
@@ -35,3 +42,4 @@ rule("vscode.compile_commands")
         os.setenv("XMAKE_IN_COMPILE_COMMANDS_PROJECT_GENERATOR", nil)
     end)
 rule_end()
+

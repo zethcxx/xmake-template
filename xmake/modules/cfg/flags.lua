@@ -233,6 +233,7 @@ local function apply_debug_flags( target, info )
             "-Wrange-loop-analysis",
             "-Wself-move",
             "-Winconsistent-missing-destructor-override",
+            "-Wno-reserved-user-defined-literal",
         })
     end
 
@@ -274,11 +275,15 @@ local function apply_release_flags( target, info )
         "-fno-ident",
     })
 
-    if not exceptions then
+    if exceptions then
+        f.cxflags({ "-fexceptions" })
+    else
         f.cxflags({ "-fno-exceptions" })
     end
 
-    if not rtti then
+    if rtti then
+        f.cxflags({ "-frtti" })
+    else
         f.cxflags({ "-fno-rtti" })
     end
 
@@ -304,6 +309,9 @@ local function apply_release_flags( target, info )
     end
 
     if is_clang( info ) then
+        f.cxxflags({
+            "-Wno-reserved-user-defined-literal",
+        })
 
         if not is_freestanding then
             f.cxflags({ "-flto" })
