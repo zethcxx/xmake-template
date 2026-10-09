@@ -282,8 +282,81 @@ target("payload")
     add_rules("payload_bin")
 ```
 
-It supports the same `payload.header`, `payload.output`, `payload.align`,
-`payload.fill_byte`, and `payload.strip` options as `payload_extract`.
+It supports the same `payload.output`, `payload.align`, `payload.fill_byte`, and
+`payload.strip` options as `payload_extract`.
+
+## Available Rules
+
+The template ships several custom xmake rules under `xmake/rules/`. Enable them with `add_rules()` as needed.
+
+### `vscode.compile_commands`
+Generates `compile_commands.json` (default `true`, can be disabled with `xmake f --compile-commands=n`).
+
+```lua
+add_rules("vscode.compile_commands")
+```
+
+### `cxx.headerunit_dirs`
+Fixes header-unit includes for GCC (no-op for Clang). Enables `import <dir/header.hpp>;` with subdirectories.
+
+```lua
+add_rules("cxx.headerunit_dirs")
+```
+
+### `cxx.scanner_norm`
+Normalizes GCC fallback scanner names (trailing whitespace/padding) to avoid dependency mismatches.
+
+```lua
+add_rules("cxx.scanner_norm")
+```
+
+### `embed_cxx`
+Embeds static files as C/C++ headers or C++ modules. Supports `hex`, `#embed` (macro) or `.incbin` (assembler). See `xmake/rules/embed_cxx.lua` for full options.
+
+```lua
+add_rules("embed_cxx")
+set_values("embed.assets", {
+    mode = "header",
+    namespace = "assets",
+    entries = { {"data", "data.bin"} }
+})
+```
+
+### `payload_extract`
+Extracts raw bytes from a PE/ELF section. Can also generate headers/modules via embed_gen or just output a `.bin` with `only_gen_bin`.
+
+```lua
+target("payload")
+    set_kind("binary")
+    add_rules("payload_extract")
+    set_values("payload.cfg.code", {
+        section = ".text",
+        only_gen_bin = true,
+        binfile = "build/code.bin",
+    })
+```
+
+### `bundle.fetch`
+Fetches data/assets on demand from a release bundle if missing (mirrors lang.bundle).
+
+```lua
+add_rules("bundle.fetch")
+set_values("bundle.entries", bundle.fetch({
+    url   = "https://github.com/example/releases/latest/download/bundle.tar.gz",
+    dest  = ".",
+    check = {"data/file.dat"},
+}))
+```
+
+### `tasks`
+Custom tasks:
+- `xmake pinfo [target]` — show target info box(es)
+- `xmake setup-perl` — validate/setup Perl environment for `perl` rule targets
+
+### `perl` (via lang.perl)
+Rule for running Perl scripts with optional Carton dependency management. See `xmake/modules/lang/perl.lua`.
+
+---
 
 ### Custom Extras (survive flag reset)
 
@@ -343,11 +416,14 @@ target("app")
 │   │       └── lbyte.stx/
 │   │           └── xmake.lua   # Local package repo
 │   └── rules/
-│       ├── compile_commands.lua
-│       ├── payload_header.lua    # Shared header generation (placeholder + real)
+│       ├── bundle.lua            # On-demand asset download from releases
+│       ├── compile_commands.lua  # vscode.compile_commands rule
+│       ├── embed_cxx.lua         # Embed static files as C/C++/modules
+│       ├── headerunit_dirs.lua   # Fix header unit includes for GCC
 │       ├── payload_extract.lua   # PE/ELF section extraction via objcopy
-│       └── payload_bin.lua       # Flat binary copy
-├── app/
+│       ├── scanner_norm.lua      # Normalize module scanner names (GCC/Clang)
+│       └── tasks.lua             # Custom tasks (pinfo, setup-perl)
+├── src/
 │   └── main.cpp
 ├── build/
 │   └── lldb/
