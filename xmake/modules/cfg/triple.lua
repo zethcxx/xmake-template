@@ -1,4 +1,5 @@
-import("core.project.config")
+import("core.project.config"     )
+import("cfg.infobox"             )
 
 local function detect_compiler( cc )
     if not cc then return "unknown" end
@@ -112,7 +113,7 @@ function get( target )
         os        = detect_os( raw_triple ),
         bits      = ( arch:find( "64" ) or raw_triple:find( "64" )) and "64" or "32",
         is_x64    = ( arch:find( "64" ) or raw_triple:find( "64" )) and true or false,
-        mode      = config.get( "mode" ),
+        mode      = config.get( "mode" ) or config.read( "mode" ),
         abi       = detect_abi( raw_triple ),
     }
 
@@ -128,11 +129,13 @@ function print_info( target, info )
         if m then march = m; break end
     end
 
-    cprint( "${white}┌${#216}[ ${bright}%s${reset}${#216}: %s ]", target:name(), target:targetfile())
-    cprint( "${white}│${#223}    toolchain: ${white}%s ${#223}-${white} %s ${#223}(${white}%s${#223}-abi)" , info.toolchain, info.compiler, info.abi )
-    cprint( "${white}│${#223}    triple   : ${white}%s"         , info.raw        )
-    cprint( "${white}│${#223}    march    : ${white}%s"         , march           )
-    cprint( "${white}│${#223}    mode     : ${white}%s"         , info.mode       )
+    local items = {
+        {label = "toolchain", value = string.format("%s ${#223}-${white} %s ${#223}(${white}%s${#223}-abi)", info.toolchain, info.compiler, info.abi)},
+        {label = "triple",    value = info.raw},
+        {label = "march",     value = march},
+        {label = "mode",      value = info.mode},
+    }
+
     local rules = target:get("rules")
     if rules then
         for _, r in ipairs(rules) do
@@ -140,11 +143,12 @@ function print_info( target, info )
                 local section = target:values("payload.section") or ".text"
                 local binname = target:values("payload.output") or (path.basename(target:targetfile()) .. ".bin")
                 local out = path.join(path.directory(target:targetfile()), binname)
-                cprint( "${white}│${#223}    payload  : ${white}%s ${#223}(${white}%s${#223})${white}", out, section )
+                table.insert(items, {label = "payload", value = string.format("%s (%s)", out, section)})
                 break
             end
         end
     end
-    cprint( "${white}└─${clear}" )
+
+    infobox.render(target:name(), target:targetfile(), items)
 end
 

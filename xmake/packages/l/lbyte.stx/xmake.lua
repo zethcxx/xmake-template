@@ -8,6 +8,7 @@ package("lbyte.stx")
     add_versions("v0.1.0", "v0.1.0")
     add_versions("v0.2.0", "v0.2.0")
     add_versions("v0.2.1", "v0.2.1")
+    add_versions("v0.3.0", "v0.3.0")
 
     add_configs("use_modules",  { description = "Build C++ modules", default = false, type = "boolean" })
 

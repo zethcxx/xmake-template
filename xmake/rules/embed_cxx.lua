@@ -1,0 +1,87 @@
+-- Embeds static files as modern C++ or C, driven by target values set under the
+-- "embed." namespace, one group per id:
+--
+--     set_values("embed.emoji", {
+--         mode        = "module",        -- "module"|"header"|"c-header"; default "header"
+--         module      = "embed.emoji",   -- module mode only; defaults to "embed."<id>;
+--                                         rejected in the other two modes
+--         namespace   = "embed",         -- optional, C++ only
+--         consteval   = false,           -- optional, C++ only; default false
+--         incbin      = false,           -- optional; default false
+--         embed_macro = false,           -- optional; default false
+--         entries     = {
+--             {"dat",    "data/emojis.dat"},
+--             {"glyphs", "data/emoji_glyphs.dat"},
+--         },
+--     })
+--
+-- Optional per-key overrides are also honored: embed.<id>.mode, .module,
+-- .namespace, .consteval, .incbin, .embed_macro, .entries, .output, .outdir
+-- and .asm.  xmake.lua wraps set_values so these dictionaries survive storage
+-- (stock xmake would treat a trailing dictionary as "extra config").
+--
+-- Modes
+--   "header"     writes embedded_<id>.hpp (C++ header) and adds its directory
+--                to the target includes.
+--   "module"     writes <module>.cppm as an exported module and registers it
+--                as a compiled source file.
+--   "c-header"   writes embedded_<id>.h, a plain C header.
+--
+-- Payload representation: by default every byte is inlined as a hex literal
+-- ("hex").  Two flags switch that, and they are mutually exclusive:
+--
+--   embed_macro=true  emits a #embed directive per entry.  The preprocessor
+--                     copies the file at build time, so the generated header
+--                     stays tiny and large blobs compile dramatically faster.
+--                     Valid in "header" and "c-header" mode; in the C++ header
+--                     the file silences -Wc23-extensions, since #embed is still
+--                     a clang extension in C++ (C23 has standardised it, so
+--                     the C header needs no such pragma).  Module mode is
+--                     rejected: #embed inside a .cppm node directly crashes
+--                     clang modules today (ICE in
+--                     ASTStmtReader::VisitSourceLocExpr).  Targets using it
+--                     also have the build cache disabled, since
+--                     re-preprocessing to build the cache hash would cost as
+--                     much as a full compile.
+--
+--   incbin=true       hands the payload to the assembler, which copies it
+--                     verbatim into .rodata.  Nothing is hex-escaped or parsed,
+--                     so the cost is independent of payload size: on this
+--                     project the 10 MB colour font goes from a 70 MB generated
+--                     header (which does not finish compiling in two minutes)
+--                     to an eight-line .S built in well under a second.  Members
+--                     are exposed as constexpr std::span, each payload's digest
+--                     is written into the .S so an edit still forces a rebuild,
+--                     and the .S is registered as a target source so the linker
+--                     resolves its symbols.  Works in all three modes (in a
+--                     C header the members become an extern declaration plus a
+--                     size enum).  No extra target setup is needed: xmake's
+--                     cxx rule compiles .S files with the toolchain
+--                     assembler already.  It needs an assembler with
+--                     .incbin, so it suits GNU/LLVM toolchains rather than
+--                     MSVC, where embed_macro is the match.
+--
+-- Combinations that cannot work are rejected at configure time with an error
+-- rather than silently ignored, so no option ever quietly does nothing:
+--   * incbin + embed_macro         two representations at once
+--   * incbin + consteval           a span is already a literal type
+--   * module set outside module mode
+--   * namespace / consteval in c-header mode
+--   * embed_macro in module mode   (the clang ICE above)
+--
+-- Generation happens in on_config so the artifacts exist before the C++ modules
+-- scanner preprocesses the .cppm units.  The actual work lives in
+-- xmake/modules/embed_gen.lua, which has the full os/path environment.
+--
+-- on_config is the only hook that does the job.  A payload produced by another
+-- target (the glyph id table is written by gen-glyph-gids during the build) does
+-- not exist yet when on_config fires, so that group is emitted as a zero-length
+-- placeholder; mopick's before_build then calls embed_gen.generate() again once
+-- the table has been written, which replaces the placeholder with the real bytes
+-- before anything is compiled.  There is deliberately no on_build_files hook here:
+-- rule build hooks do not fire for a rule attached with add_rules, so it looked
+-- like it worked while never running.
+rule("embed_cxx")
+    on_config(function(target)
+        import("embed_gen").generate(target)
+    end)

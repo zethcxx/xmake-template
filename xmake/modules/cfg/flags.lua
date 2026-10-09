@@ -233,6 +233,7 @@ local function apply_debug_flags( target, info )
             "-Wrange-loop-analysis",
             "-Wself-move",
             "-Winconsistent-missing-destructor-override",
+            "-Wno-reserved-user-defined-literal",
         })
     end
 
@@ -304,6 +305,9 @@ local function apply_release_flags( target, info )
     end
 
     if is_clang( info ) then
+        f.cxxflags({
+            "-Wno-reserved-user-defined-literal",
+        })
 
         if not is_freestanding then
             f.cxflags({ "-flto" })
