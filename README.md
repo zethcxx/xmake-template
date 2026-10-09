@@ -9,6 +9,7 @@ strict diagnostics, zero-bloat, and **ABI-aware multi-architecture** support.
 
 ## Key Features
 
+* **C++23 Modules + Header Units:** Full modules support with automatic header-unit precompilation for Clang and GCC fallback-scanner normalization for cleaner dependency discovery.
 * **`.lldbinit` generation:** Auto-generates `build/lldb/<target>.lldbinit` with `target.source-map` for MSVC debug builds — enables debugging cross-compiled binaries with lldb on Windows.
 * **Multi-ABI:** Detects `msvc`, `android`, `gnu`, `musl`, `cygnus` from the target triple.
 * **Architecture presets:** Separate `buildtype` tables for `x86_64`, `arm64`, and `arm32`.
@@ -16,7 +17,7 @@ strict diagnostics, zero-bloat, and **ABI-aware multi-architecture** support.
 * **Diagnostics:** Aggressive warning levels for both C and C++ (Clang + GCC).
 * **No-Bloat:** RTTI and Exceptions disabled by default in release (configurable).
 * **LTO:** Enabled in release for Clang; linker auto-selected per ABI (`lld`, `lld-link`, or NDK default).
-* **Automation:** Opt-in `compile_commands.json` via `xmake f --compile-commands=y`.
+* **Automation:** `compile_commands.json` generation via `vscode.compile_commands` rule.
 
 ## Quick Start
 
@@ -125,15 +126,7 @@ During `xmake f` every target prints detected toolchain info with ABI detection:
 The `abi` suffix (`gnu`, `msvc`, `android`, `musl`, etc.) is detected automatically from the target triple.
 For payload targets, an additional line shows the extracted `.bin` path and section.
 
-The info block is printed once per toolchain/mode combination on the first `xmake f`.
-A marker file in the output directory prevents re-printing during `xmake build` or
-`xmake run`. Running `xmake f -c` clears the marker, so info appears again on the
-next configure.
-
-To force printing on every configure (ignoring the marker), pass `--pinfo=y`:
-```sh
-xmake f --pinfo=y
-```
+The info block is shown on demand via `xmake pinfo [target]`. It prints per-target toolchain, triple, ABI, march and additional context (e.g. payload output for `payload_extract` targets). Configuring stays quiet by default.
 
 ### Linker Flags (non-MSVC)
 
@@ -174,7 +167,7 @@ The template includes a local xmake package repository at `xmake/packages/` for 
 Enabled via:
 
 ```lua
-add_repositories("local-repo xmake")
+add_repositories("local-repo ./xmake/")
 ```
 
 #### lbyte.stx
@@ -185,7 +178,7 @@ A header-only C++23 utility library tracked via git tags:
 |--------------------------------------|------------------------------------|
 | `add_requires("lbyte.stx")`          | Latest `main` branch (default)     |
 | `add_requires("lbyte.stx main")`     | Explicit `main` branch             |
-| `add_requires("lbyte.stx v0.2.0")`   | Specific git tag                   |
+| `add_requires("lbyte.stx v0.4.0")`   | Specific git tag                   |
 
 ```lua
 add_requires("lbyte.stx", {configs = {use_modules = false}})
