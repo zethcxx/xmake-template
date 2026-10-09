@@ -9,6 +9,7 @@ cd "$PROJECT_NAME"
 echo "[*] Creating project structure: $PROJECT_NAME"
 
 BASE_URL="https://raw.githubusercontent.com/zethcxx/xmake-template/main"
+
 ENTRIES=(
     "src/main.cpp"
     "xmake.lua"
@@ -18,9 +19,6 @@ ENTRIES=(
     "xmake/modules/cfg/triple.lua"
     "xmake/modules/embed_gen.lua"
     "xmake/modules/embed_hex.lua"
-    "xmake/modules/lang/bundle.lua"
-    "xmake/modules/lang/core.lua"
-    "xmake/modules/lang/perl.lua"
     "xmake/modules/utils/strings.lua"
     "xmake/packages/l/lbyte.stx/xmake.lua"
     "xmake/rules/bundle.lua"
@@ -32,18 +30,19 @@ ENTRIES=(
     "xmake/rules/tasks.lua"
 )
 
-for entry in "${ENTRIES[@]}"
-do
-    DIR=$(dirname ${entry})
-
-    if [[ $DIR != "." && ! -d $DIR ]] then
+for ((i=0; i<${#ENTRIES[@]}; i++)); do
+    entry="${ENTRIES[$i]}"
+    DIR="$(dirname "$entry")"
+    if [[ "$DIR" != "." && ! -d "$DIR" ]]; then
         mkdir -p "$DIR"
     fi
-
     echo "[*] Downloading: $entry"
-    wget -q "$BASE_URL/$entry" -O "$entry"
+    if command -v wget >/dev/null 2>&1; then
+        wget -q "$BASE_URL/$entry" -O "$entry" || true
+    elif command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$BASE_URL/$entry" -o "$entry" || true
+    fi
 done
 
 echo ""
 echo "[✔] Environment initialized successfully."
-
