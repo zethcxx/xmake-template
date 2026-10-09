@@ -311,14 +311,17 @@ add_rules("cxx.scanner_norm")
 ```
 
 ### `embed_cxx`
-Embeds static files as C/C++ headers or C++ modules. Supports `hex`, `#embed` (macro) or `.incbin` (assembler). See `xmake/rules/embed_cxx.lua` for full options.
+Embeds static files as C/C++ headers or C++ modules. Supports `hex` (default), `embed_macro = true` (`#embed`) or `incbin = true` (`.incbin` + `.S`). Mutually exclusive. See `xmake/rules/embed_cxx.lua` for full options.
 
 ```lua
 add_rules("embed_cxx")
 set_values("embed.assets", {
-    mode = "header",
-    namespace = "assets",
-    entries = { {"data", "data.bin"} }
+    mode        = "header",  -- "header"|"module"|"c-header"
+    namespace   = "assets",
+    embed_macro = false,     -- use #embed
+    incbin      = false,     -- use .incbin via assembler
+    consteval   = false,
+    entries     = { {"data", "data.bin"} }
 })
 ```
 
