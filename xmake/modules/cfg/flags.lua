@@ -131,6 +131,10 @@ local function apply_common_flags( target, info )
         "-fdiagnostics-color=always",
     })
 
+    if is_clang(info) then
+        f.cxxflags({ "-Wno-experimental-header-units" })
+    end
+
     if march then
         f.cxflags({ "-march=" .. march })
     end

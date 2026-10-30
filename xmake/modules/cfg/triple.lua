@@ -120,6 +120,40 @@ function get( target )
     return info
 end
 
+local PAYLOAD_PREFIX = "payload.cfg."
+
+local function payload_items(target)
+    local values = target:get("values")
+    if type(values) ~= "table" then
+        return {}
+    end
+
+    local names = {}
+    for key in pairs(values) do
+        if type(key) == "string" and key:sub(1, #PAYLOAD_PREFIX) == PAYLOAD_PREFIX then
+            local name = key:sub(#PAYLOAD_PREFIX + 1)
+            if name ~= "" then
+                names[#names + 1] = name
+            end
+        end
+    end
+    table.sort(names)
+
+    local items = {}
+    for _, name in ipairs(names) do
+        local cfg = values[PAYLOAD_PREFIX .. name] or {}
+        local bin = cfg.binfile and path.absolute(cfg.binfile)
+            or values["payload.bin." .. name]
+        if not bin and target:targetfile() then
+            bin = path.join(path.directory(target:targetfile()), name .. ".bin")
+        end
+        if bin then
+            items[#items + 1] = {label = "payload." .. name, value = string.format("%s (%s)", bin, cfg.section or ".text")}
+        end
+    end
+    return items
+end
+
 function print_info( target, info )
     if not info then return end
 
@@ -136,17 +170,8 @@ function print_info( target, info )
         {label = "mode",      value = info.mode},
     }
 
-    local rules = target:get("rules")
-    if rules then
-        for _, r in ipairs(rules) do
-            if r == "payload_extract" then
-                local section = target:values("payload.section") or ".text"
-                local binname = target:values("payload.output") or (path.basename(target:targetfile()) .. ".bin")
-                local out = path.join(path.directory(target:targetfile()), binname)
-                table.insert(items, {label = "payload", value = string.format("%s (%s)", out, section)})
-                break
-            end
-        end
+    for _, item in ipairs(payload_items(target)) do
+        items[#items + 1] = item
     end
 
     infobox.render(target:name(), target:targetfile(), items)

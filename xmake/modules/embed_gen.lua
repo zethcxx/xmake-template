@@ -1,17 +1,5 @@
--- C++/C byte-array generator shared by the embed_cxx and payload_extract rules.
---
--- Produces three families of output:
---   * C header   (.h)   — simple unsigned char name[] + name_size
---   * C++ header (.hpp) — namespace-wrapped; either constexpr arrays/spans or
---                         consteval functions returning std::array
---   * C++ module (.cppm) — export module + export namespace wrapper
---
--- Each data member is described by an entry whose content is supplied one of
--- four ways: as an in-memory byte string emitted as hex literals, as a path the
--- preprocessor copies via #embed, as a path the assembler copies verbatim via
--- .incbin (see the 'incbin' group option), or -- for entries with no backing
--- file -- as a literal value given inline.  The hex path buffers the whole
--- payload, so a large blob belongs in incbin or embed_macro instead.
+-- C/C++ byte-array generator shared by embed_cxx and payload_extract.
+-- Entries are emitted as hex literals, #embed directives or .incbin blocks.
 
 local hex = import("embed_hex")
 
@@ -22,9 +10,7 @@ local function c_escape(s)
     return s:gsub([[\]], [[\\]]):gsub([["]], [[\"]])
 end
 
--- Returns output-bound emit helpers:
---   emit(fmt, ...)   formatted line + newline
---   inline(...)      literal line + newline (no formatting)
+-- Returns output-bound emit(fmt, ...) and inline(...) helpers.
 local function make_emit(output)
     local function emit(fmt, ...)
         output:write(string.format(fmt, ...), "\n")
@@ -38,45 +24,29 @@ end
 -- A C header declares its arrays at column 0, so its payload sits one level in.
 local C_BODY_INDENT = "    "
 
--- Writes one entry's payload at `indent`: the bytes as hex literals, or the
--- #embed directive that stands in for them.  A zero-sized entry writes nothing,
--- leaving the opening brace directly followed by its closing one.
+-- Writes one entry's payload as hex literals or a #embed directive.
 local function write_payload(output, entry, indent)
     if entry.size == 0 then
         return
     end
     if entry.embed_path then
-        -- #embed is a preprocessing directive: it must start a line.  Leading
-        -- whitespace is legal there and lines the directive up with the hex it
-        -- replaces.  It expands to the file's bytes, one array element each.
         output:write(indent, '#embed "', c_escape(entry.embed_path), '"\n')
     else
         output:write(hex.hex_body(entry.data, indent), "\n")
     end
 end
 
--- Emits one C++ data member.  entry = {name, size, data|embed_path|incbin_path}.
--- `member` is the leading whitespace of the member itself, so a group without a
--- namespace indents from column 0 instead of inheriting the namespace's level.
+-- Emits one C++ data member. entry = {name, size, data|embed_path|incbin_path}.
 local function write_cpp_member(output, entry, consteval, member)
     local emit = make_emit(output)
     member = member or ""
 
     if entry.incbin_path then
-        -- The bytes already live in the assembler's object; all that remains is
-        -- a constant span over them.  The size is written here as a literal
-        -- rather than derived from a _end symbol, because a pointer difference
-        -- between two unrelated objects is not a constant expression, and
-        -- keeping the span constexpr is what lets consumers use it in static
-        -- initialisers (the same role std::array played).
         emit("%sconstexpr std::span<const unsigned char> %s = { %s, %d };", member, entry.name, entry.symbol, entry.size)
         return
     end
 
     if consteval then
-        -- A function, not an object: the caller decides what to do with the
-        -- array (bind it, store it elsewhere, run an algorithm over it) and
-        -- nothing reaches storage unless it is actually used.
         local inner = member .. "    "
         emit("%sconsteval auto %s() {\n%sconstexpr std::array<unsigned char, %d> raw = {"
             , member
@@ -105,52 +75,32 @@ local function write_c_entry(output, entry)
     local emit = make_emit(output)
 
     if entry.incbin_path then
-        -- The storage lives in the assembler's object, so the header can only
-        -- declare it.  An enum carries the length as a compile-time constant
-        -- without giving it storage or a second exported symbol.  The symbol
-        -- name is the one the generated .S defines, so it must match exactly.
         emit("extern const unsigned char %s[];\nenum { %s_size = %d };", entry.symbol, entry.name, entry.size)
         return
     end
 
-    -- 'const' so the payload lands in .rodata instead of .data: a blob of a few tens of KB per
-    -- entry would otherwise be copied into writable memory for the life of the process.  In C++
-    -- this also gives the array internal linkage, so a header included from more than one
-    -- translation unit cannot produce duplicate symbols.
     emit("const unsigned char %s[] = {", entry.name)
     write_payload(output, entry, C_BODY_INDENT)
     emit("};\n\nunsigned long long %s_size = %d;", entry.name, entry.size)
 end
 
--- Emits a full C header (.h) wrapping one or more entries.  The result is plain
--- C: no namespace, no <array>/<span>, no C++ keyword.  Members are the classic
--- `unsigned char name[] = {...}` plus a trailing `name_size`, or, under incbin,
--- an extern declaration plus a size enum because the bytes live elsewhere.
+-- Emits a plain C header wrapping one or more entries.
 local function write_c_header(output, entries)
     local emit, inline = make_emit(output)
 
     inline(BANNER)
     emit("#pragma once")
-    -- No diagnostic pragma here: #embed is standard C23, so neither clang nor
-    -- GCC warns about it in C, and "-Wc++23-extensions" is C++-only, so
-    -- naming it would make every -Werror C build fail on the generated header.
     for _, entry in ipairs(entries) do
         inline("")
         write_c_entry(output, entry)
     end
 end
 
--- Writes the shared C++ scaffolding (pragma/imports + namespace open/close)
--- around a body emit callback.  `entries` is the group's full entry list; only
--- the incbin ones are needed here, to hoist their extern declarations above
--- "export module".
+-- Writes shared C++ scaffolding (includes, namespace, module declaration).
 local function write_cpp_wrapper(output, opts, entries, body)
     local emit, inline = make_emit(output)
     inline(BANNER)
 
-    -- Both branches leave the cursor on a fresh, blank line, so every section
-    -- below can simply start writing and the spacing stays the same whether a
-    -- namespace, an incbin block or an exported module comes next.
     if opts.mode == "module" then
         emit(""
             .. "module;\n"
@@ -165,11 +115,7 @@ local function write_cpp_wrapper(output, opts, entries, body)
         )
     end
 
-    -- incbin members are spans over symbols the assembler defines, so they need
-    -- <span> as well.  Their declarations belong in the global module fragment,
-    -- ahead of "export module": a declaration with C language linkage is not
-    -- module-owned, but only outside the module purview is that guaranteed, and
-    -- there it plainly resolves against the assembler's object at link time.
+    -- incbin declarations must precede "export module" (global module fragment).
     local incbin = {}
     for _, entry in ipairs(entries) do
         if entry.incbin_path then
@@ -177,7 +123,6 @@ local function write_cpp_wrapper(output, opts, entries, body)
         end
     end
     if #incbin > 0 then
-        -- No leading blank: the include above already left one behind.
         inline("#include <span>")
         inline("")
         inline("extern \"C\" {")
@@ -189,14 +134,10 @@ local function write_cpp_wrapper(output, opts, entries, body)
     end
 
     if opts.mode == "module" then
-        -- The cursor is already on a blank line courtesy of the include above.
         emit("export module %s;\n", opts.module)
     end
 
-    -- #embed reached C23 but is still a Clang extension in C++, so only
-    -- clang needs silencing here.  GCC does not warn in C++ at all, and its
-    -- "-Wc++23-extensions" spelling is rejected outright in C mode, which
-    -- would break any consumer building with -Werror.
+    -- #embed is still a Clang extension in C++.
     if opts.embed_macro then
         inline("#if defined(__clang__)")
         inline("#pragma clang diagnostic ignored \"-Wc23-extensions\"")
@@ -233,17 +174,12 @@ local function entry_from_embed(name, source, size)
     return {name = name, embed_path = path.absolute(source), size = size}
 end
 
--- Entry backed by an absolute source path copied verbatim by the assembler's
--- .incbin.  The bytes never pass through Lua or the C++ front-end: they go
--- from the file straight into the object's .rodata.  Only the digest travels
--- through the generated sources, so a payload edit still invalidates the build.
+-- Entry backed by a path copied verbatim by the assembler's .incbin.
 local function entry_from_incbin(name, source, size, digest)
     return {name = name, incbin_path = path.absolute(source), size = size, digest = digest}
 end
 
--- Generates a multi-entry file.  entries is a list of entry tables built by the
--- entry_from_* helpers above.  mode "c-header" emits a C header, anything else a
--- C++ header or module.
+-- Generates a multi-entry file (C header, C++ header or module).
 function write_embedded(output_path, opts, entries)
     opts = opts or {}
 
@@ -267,10 +203,7 @@ function write_embedded(output_path, opts, entries)
     output:close()
 end
 
--- Generates a single-entry file, wrapping a raw byte string (nil for an empty
--- placeholder).  This is the entry point payload_extract uses; `lang = "c"`
--- selects the C header, otherwise `mode` picks a C++ header or module.
--- Returns the generated file path.
+-- Generates a single-entry file from a raw byte string (nil for placeholder).
 function write_file(outdir, basename, opts, data)
     opts = opts or {}
     local lang = opts.lang or "cxx"
@@ -279,11 +212,6 @@ function write_file(outdir, basename, opts, data)
     os.mkdir(outdir)
     local ext = lang == "c" and ".h" or (mode == "module" and ".cppm" or ".hpp")
 
-    -- The emitters key off `mode`, so fold the legacy `lang` switch into it and
-    -- let write_embedded do the actual generation.  A module unit still needs a
-    -- name, and callers that predate the `module` option (payload_extract) do not
-    -- pass one -- formatting a nil here would emit "export module nil;", so apply
-    -- the same default resolve_options uses for groups.
     local module_name = opts.module
     if mode == "module" and not module_name then
         module_name = "embed." .. basename
@@ -300,24 +228,17 @@ function write_file(outdir, basename, opts, data)
     return path.join(outdir, basename .. ext)
 end
 
--- Bump whenever the generated text changes.  The content hash in generate_group
--- only tracks the payload digests, so without this a rule update would keep
--- serving stale artifacts (e.g. a .S whose assembler syntax no longer assembles).
+-- Bump when the generated text changes; the content hash only tracks payloads.
 local GENERATOR_VERSION = 2
 
--- Writes the assembler companion for an incbin group.  One .incbin per entry,
--- each preceded by its payload digest: the file stays a few lines, but because
--- the digest is part of its text a payload edit rewrites this file, so the build
--- system recompiles it and relinks with the new bytes.  Without that the .S
--- would look unchanged and the binary would silently keep stale data.
+-- Writes the assembler companion for an incbin group. Each entry carries its
+-- digest so a payload edit invalidates the generated object.
 local function write_incbin_asm(output_path, entries)
     local output = io.open(output_path, "w")
     if not output then
         os.raise("embed_cxx: unable to open output file: %s", output_path)
     end
 
-    -- '#' is the only line comment both GNU as and LLVM MC accept on x86;
-    -- '--' is rejected as an unexpected token, so it cannot be used here.
     output:write("# Generated by the embed_cxx rule (xmake). Do not edit.\n")
     output:write("# source=\"incbin\": the payload is copied verbatim into .rodata,\n")
     output:write("# so nothing here has to be parsed or hex-escaped.\n")
@@ -338,18 +259,11 @@ local function write_incbin_asm(output_path, entries)
     output:close()
 end
 
--- Resolves a configured entry into a source entry.  `representation` selects how
--- the bytes reach the artifact: "hex" (the default) loads them into memory and
--- emits them as ,-separated literals; "embed" hands the absolute source path to a
--- #embed directive; "incbin" hands it to the assembler and passes only the digest
--- along.  `symbol_prefix` keeps generated linker symbols unique across groups,
--- since two groups may well name different files the same thing.
+-- Resolves a configured entry into a source entry for the chosen representation.
 local function resolve_entry(entry, representation, digest, symbol_prefix)
     local name = entry[1]
     local src = entry[2]
     if type(src) == "table" then
-        -- In-memory value with no backing file, so #embed and .incbin have
-        -- nothing to point at.
         return entry_from_data(name, src)
     end
 
@@ -359,9 +273,6 @@ local function resolve_entry(entry, representation, digest, symbol_prefix)
     end
     if representation == "incbin" then
         local resolved = entry_from_incbin(name, src, size, digest)
-        -- Only a non-empty payload gets a symbol: there are no bytes for an
-        -- empty .incbin to define, and the emitters already treat a zero-sized
-        -- entry as "nothing to emit".
         if size > 0 then
             resolved.symbol = symbol_prefix .. name
         end
@@ -375,9 +286,6 @@ local function resolve_entry(entry, representation, digest, symbol_prefix)
     if not handle then
         os.raise("embed_cxx: input not found: %s", src)
     end
-    -- NB: read("<n>") on this xmake runtime caps out around ~1 MiB and would
-    -- silently truncate large blobs; read("*a") reads the whole file.  We load
-    -- the bytes into memory and emit them with hex_body.
     local data = handle:read("*a")
     handle:close()
     if not data then
@@ -416,22 +324,9 @@ end
 
 local MODES = { module = true, header = true, ["c-header"] = true }
 
--- The set of accepted mode strings, in the order used by the error message.
 local MODE_LIST = "'module', 'header' or 'c-header'"
 
--- Turns a group's raw dictionary into a validated option set, raising on any
--- combination that cannot work or that would be silently ignored.  Validation
--- lives here (once) rather than being spread over the emitters so a group is
--- rejected up front instead of producing a subtly wrong artifact.
---
--- Resolved keys:
---   mode          "module"|"header"|"c-header"; default "header"
---   module        module unit name; defaults to "embed."<id> in module mode,
---                 forbidden in the other two
---   namespace     optional C++ namespace; meaningless (and rejected) for C
---   consteval     emit consteval accessors instead of inline constexpr members
---   incbin        let the assembler copy payloads verbatim into .rodata
---   embed_macro   emit a #embed directive per entry instead of hex literals
+-- Validates a group's raw dictionary, rejecting combinations that cannot work.
 local function resolve_options(id, raw)
     local mode = raw.mode or "header"
     if not MODES[mode] then
@@ -448,9 +343,6 @@ local function resolve_options(id, raw)
         os.raise("embed_cxx: group '%s' cannot set both 'incbin' and 'embed_macro'; pick one", id)
     end
     if incbin and consteval then
-        -- A span over an assembler symbol is already a literal type, so a
-        -- consteval accessor would only add an indirection; reject rather than
-        -- ignore so the flag never silently does nothing.
         os.raise("embed_cxx: group '%s' cannot combine 'incbin' with 'consteval'; a span is already constexpr", id)
     end
     if module_name ~= nil and mode ~= "module" then
@@ -470,8 +362,6 @@ local function resolve_options(id, raw)
     end
 
     if embed_macro and mode == "module" then
-        -- #embed inside a .cppm directly ICEs clang < 23 even though it works in
-        -- a header #include'd from the global module fragment; reject it.
         os.raise("embed_cxx: group '%s' cannot use 'embed_macro' in module mode (ICE in clang modules)", id)
     end
 
@@ -485,8 +375,6 @@ local function resolve_options(id, raw)
     }
 end
 
--- The single active payload representation for a resolved group, used as the
--- key for the internal code paths and the generated output directory.
 local function representation(opts)
     if opts.incbin then
         return "incbin"
@@ -518,10 +406,7 @@ local function generate_group(target, id, raw)
         output_name = raw.output or ("embedded_" .. id .. ".hpp")
     end
 
-    -- Derive a shared output directory from the group's identity so equal
-    -- groups across targets reuse one artifact.  Mode, consteval and the
-    -- payload representation are part of the key, keeping distinct outputs in
-    -- separate folders.
+    -- Shared per group identity so equal groups reuse one artifact.
     local output_dir
     if raw.outdir then
         output_dir = path.absolute(raw.outdir)
@@ -534,8 +419,6 @@ local function generate_group(target, id, raw)
             group_key = group_key .. "|" .. name .. "=" .. source_key
         end
         local key_file = path.join(path.absolute(config.builddir()), ".gens", "embed", ".groupkey.tmp")
-        -- The scratch file is written before anything else in this function, so on a fresh
-        -- tree (no build dir at all) its parent has to exist first.
         os.mkdir(path.directory(key_file))
         io.writefile(key_file, group_key)
         local group_hash = hash.sha256(key_file) or "shared"
@@ -554,10 +437,7 @@ local function generate_group(target, id, raw)
         asm_output = path.join(output_dir, raw.asm or ("embed_" .. id .. ".S"))
     end
 
-    -- Content-hash the sources so unchanged rebuilds don't regenerate the
-    -- multi-MB header on every configure.  The digests are kept per entry so
-    -- the .incbin file can carry them, which is what makes a payload edit
-    -- invalidate the compiled object instead of silently going stale.
+    -- Content-hash the sources to avoid regenerating unchanged output.
     local hash_file = output .. ".hash"
     local current_hash
     local missing = {}
@@ -584,19 +464,8 @@ local function generate_group(target, id, raw)
     local symbol_prefix = "embed_" .. id .. "_"
 
     if #missing > 0 then
-        -- Sources can be produced later by another target (gen-glyph-gids shapes the
-        -- emoji -> gid table at build time), so a configure-time run must not fail
-        -- because they don't exist yet.  It must not simply skip the group either:
-        -- a group in "module" mode has to be registered in the target's module graph
-        -- during this configure, and xmake resolves `import <module>` against the
-        -- files that exist right now, so an unregistered module aborts the configure
-        -- with "missing <module> dependency for module ...".
-        --
-        -- So write a placeholder carrying the same declarations with zero-length
-        -- members, register it, and leave the hash file absent so the build-time pass
-        -- regenerates the real content right before the target's files are compiled
-        -- (mopick's before_build calls generate() again).  Nothing ever links the
-        -- placeholder: the generator reruns in the same build.
+        -- Sources may be produced later by another target, so write a
+        -- placeholder and let the build-time pass regenerate the real content.
         local placeholder = {}
         for index, item in ipairs(entries) do
             placeholder[index] = entry_from_data(item[1], "")
@@ -606,8 +475,7 @@ local function generate_group(target, id, raw)
         os.tryrm(output)
         os.mv(tmp, output)
         if asm_output then
-            -- No payload to incbin yet: emit the section but no symbols, so the
-            -- placeholder stays assemblable.
+            -- No payload yet: emit an empty section so the placeholder assembles.
             local asm_tmp = asm_output .. ".placeholder.tmp"
             write_incbin_asm(asm_tmp, {})
             os.tryrm(asm_output)
@@ -640,13 +508,7 @@ local function generate_group(target, id, raw)
 
     target:add("includedirs", output_dir, {force = true})
     if asm_output then
-        -- .incbin needs an assembler, and xmake's cxx rule already compiles .S files with the
-        -- toolchain assembler: adding the file is enough. Note that this must NOT be expressed
-        -- as target:add("languages", "asm") -- xmake validates `languages` against the
-        -- languages it knows (c, cxx, objc, ...), warns "unknown language value 'asm'" and then
-        -- drops the target's build tasks, so nothing gets compiled or linked.
-        -- Registering the .S puts its object in the target, so the linker
-        -- resolves the extern "C" symbols the generated C++ declares.
+        -- Registering the .S makes xmake assemble it and link its symbols.
         target:add("files", asm_output)
         vprint("[embed_cxx] generated %s", path.relative(asm_output, os.projectdir()))
     end
@@ -672,17 +534,13 @@ function generate(target)
         end
     end
     if uses_embed then
-        -- xmake's build cache re-preprocesses every source to build its
-        -- caching hash, and #embed expansion makes that preprocess pass cost
-        -- as much as a full compile (~GBs of tokens).  Targets that embed via
-        -- #embed keep nothing to cache, so skip the cache entirely.
+        -- #embed makes the build cache's preprocess pass as costly as a full
+        -- compile, so disable it for these targets.
         local ok = false
         if type(target.set_policy) == "function" then
             target:set_policy("build.ccache", false)
             ok = true
         else
-            -- Some xmake builds expose set_policy only inside the target scope
-            -- (not as an instance method); write it into the scope info instead.
             local info = target:info()
             if type(info) == "table" then
                 info.policy = info.policy or {}

@@ -1,32 +1,21 @@
--- Fetch data/ and assets/ from a release bundle when they are not present.
+-- Fetch release data/assets when missing.
 --
--- The heavy payload (prebuilt emojis/glyphs/lang .dat + the Noto colour font)
--- ships as one GitHub Release asset instead of being committed: the repo stays
--- small, and data updates never cost a git commit.  This rule mirrors the
--- bundle on demand during the configure step:
+--   add_rules("bundle.fetch")
+--   set_values("bundle.entries", bundle.fetch {
+--       url          = "...",      -- required; local path or URL
+--       dest         = ".",        -- required; extraction directory
+--       check        = { "data/x.dat" },  -- required; files that must exist
+--       kind         = nil,        -- "file" | "archive" (default: from url)
+--       strip        = nil,        -- leading path components to strip
+--       only         = nil,        -- extract only these members
+--       marker       = nil,        -- extra marker file
+--       sha256       = nil,        -- expected 64-char hex digest
+--       auth         = nil,        -- only "gh"
+--       check_strict = false,      -- require every check entry
+--   })
 --
---   * all required files present -> no-op (the common case)
---   * anything missing           -> download the latest bundle and unpack it
---   * refresh after upstream set -> rm -rf data assets && xmake f
---
--- The asset is reached through the stable "releases/latest/download" URL, so
--- re-running scripts/make-bundle.pl --push against a new release is enough.
---
--- A target opts in with:
---
---     add_rules("bundle.fetch")
---     set_values("bundle.entries", bundle.fetch {
---         url   = "https://github.com/zethcxx/emoji-picker/releases/latest/download/emoji-picker-bundle.tar.gz",
---         dest  = ".",
---         check = { "data/emojis.dat", "assets/fonts/NotoColorEmoji.ttf" },
---     })
---
--- bundle.fetch(...) validates one entry (or a list of entries) and returns the
--- tables verbatim -- no string serialization, unlike the perl rule, because no
--- subprocess needs them.  The on_load hook then delegates to the lang.bundle
--- engine, which downloads on demand, strips/selects archive members and
--- verifies an optional sha256 digest.  Using a local path as the url (offline
--- builds, tests) behaves exactly like the public release asset.
+-- Accepts one table or a list of tables. Download and verification are
+-- delegated to lang.bundle.
 
 bundle = bundle or {}
 
@@ -152,8 +141,6 @@ local function _validate(cfg, idx)
     return entry
 end
 
--- Validates one entry (or a list of entries) and always returns a list, ready
--- for set_values("bundle.entries", ...).
 function bundle.fetch(cfg)
     local entries = {}
     if type(cfg) == "table" and cfg[1] ~= nil then

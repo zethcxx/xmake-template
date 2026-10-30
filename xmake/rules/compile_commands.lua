@@ -1,3 +1,7 @@
+-- Generate compile_commands.json after configuration.
+--
+-- Enabled by default; disable with `xmake f --compile-commands=n`.
+
 option("compile-commands")
     set_default(true)
     set_showmenu(true)

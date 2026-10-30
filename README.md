@@ -1,438 +1,585 @@
-# xmake-template
+# cpp-xmake
 
-A personal C++23 build template powered by **xmake**, focused on binary hardening,
-strict diagnostics, zero-bloat, and **ABI-aware multi-architecture** support.
+A personal **C++23** build template powered by [xmake](https://xmake.io).
+It focuses on strict diagnostics, binary hardening, multi-ABI cross-compilation,
+C++20/23 modules and a small set of reusable project rules.
 
-> Targets **GCC** and **Clang** across **Linux**, **Windows**, **Android**, and any
-> other platform — ABI is detected automatically from the target triple.
-> This is my personal configuration, but feel free to use, fork, or modify it.
+> Targets **GCC** and **Clang** on Linux, Windows, Android and other platforms.
+> The ABI is detected automatically from the target triple.
+> This is my personal setup; feel free to use, fork or modify it.
 
-## Key Features
+Tested with xmake `3.1.x`, GCC `16.x` and Clang `22.x` on Linux.
 
-* **C++23 Modules + Header Units:** Full modules support with automatic header-unit precompilation for Clang and GCC fallback-scanner normalization for cleaner dependency discovery.
-* **`.lldbinit` generation:** Auto-generates `build/lldb/<target>.lldbinit` with `target.source-map` for MSVC debug builds — enables debugging cross-compiled binaries with lldb on Windows.
-* **Multi-ABI:** Detects `msvc`, `android`, `gnu`, `musl`, `cygnus` from the target triple.
-* **Architecture presets:** Separate `buildtype` tables for `x86_64`, `arm64`, and `arm32`.
-* **Hardening:** Stack protectors, RELRO, NX, ASLR, `--as-needed`, `separate-code`.
-* **Diagnostics:** Aggressive warning levels for both C and C++ (Clang + GCC).
-* **No-Bloat:** RTTI and Exceptions disabled by default in release (configurable).
-* **LTO:** Enabled in release for Clang; linker auto-selected per ABI (`lld`, `lld-link`, or NDK default).
-* **Automation:** `compile_commands.json` generation via `vscode.compile_commands` rule.
+## Highlights
 
-## Quick Start
+- **C++23 modules + header units** — each target keeps its own header-unit BMI,
+  so targets with different flags (`-fexceptions`, `-fno-rtti`, ...) can coexist.
+- **Fallback scanner normalization** — aligned imports such as `import std   ;`
+  or `import <cstdio> ;` are normalized before dependency resolution.
+- **Multi-ABI** — detects `msvc`, `android`, `gnu`, `musl` and `cygnus` from the
+  target triple.
+- **Architecture presets** — separate `buildtype` tables for `x86_64`, `arm64`
+  and `arm32`.
+- **Hardening** — stack protector, RELRO, NX, ASLR, `--as-needed`,
+  `--gc-sections` and `separate-code`.
+- **Strict diagnostics** — aggressive warning sets for GCC and Clang.
+- **No bloat by default** — exceptions and RTTI are disabled in release.
+- **LTO** — enabled for Clang release builds, with the linker selected per ABI.
+- **Extras** — `compile_commands.json`, static-file embedding, payload
+  extraction, release-bundle fetching and a `pinfo` task.
+
+## Requirements
+
+- xmake `>= 3.0`
+- A compiler with C++23 modules support (GCC 16+ or Clang 22+ recommended)
+- Optional: `llvm-objcopy` or `objcopy` for `payload_extract`
+- Optional: network access (or a local path) for `bundle.fetch`
+
+## Installation
 
 ### Unix (Linux/macOS)
+
 ```sh
-curl -sSL https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.sh | bash # -s -- <project_name>
+curl -sSL https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.sh | bash -s -- my-project
 ```
 
-### Windows (Powershell)
-```sh
-powershell -Command "& { $(iwr -useb https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.ps1) '.' }" # '.' or <project_name>
+### Windows (PowerShell)
+
+```powershell
+powershell -Command "& { $(iwr -useb https://raw.githubusercontent.com/zethcxx/xmake-template/main/install.ps1) 'my-project' }"
 ```
+
+The scripts download `xmake.lua`, the complete `xmake/` tree and `src/main.cpp`.
+
+## Project layout
+
+```text
+.
+├── xmake.lua
+├── xmake/
+│   ├── modules/
+│   │   ├── actions.lua          # configure / after_build / run hooks
+│   │   ├── embed_gen.lua        # byte-array and embed file generator
+│   │   ├── embed_hex.lua        # hex formatting helper
+│   │   └── cfg/
+│   │       ├── flags.lua        # compiler/linker flag pipeline
+│   │       ├── infobox.lua      # pinfo renderer
+│   │       └── triple.lua       # toolchain/triple/ABI detection
+│   ├── packages/
+│   │   └── l/lbyte.stx/xmake.lua
+│   └── rules/
+│       ├── bundle.lua            # bundle.fetch
+│       ├── compile_commands.lua  # vscode.compile_commands
+│       ├── embed_cxx.lua         # embed_cxx
+│       ├── headerunit_dirs.lua   # cxx.headerunit_dirs
+│       ├── payload_extract.lua   # payload_extract
+│       ├── scanner_norm.lua      # cxx.scanner_norm
+│       └── tasks.lua             # pinfo / setup-perl tasks
+├── src/main.cpp
+├── install.sh
+├── install.ps1
+└── README.md
+```
+
+Generated files live under `build/`; `.xmake/` stores xmake's local state.
+Both are ignored by git.
 
 ## Configuration
 
-All config is done inside a `target()` in `xmake.lua`.
-Flags are applied in a controlled pipeline — no magic.
+### Target skeleton
 
-### Per-target Keys
-
-The `get_target_value()` pipeline reads values in this priority:
-
-1. **CLI option** — `xmake f --buildtype=native`
-2. **`set_values()`** — target-level override
-3. **`set()`** — target-level property (legacy)
-4. **Hardcoded default** — in `flags.lua`
-
-| Key                    | Default            | Description                                           |
-|------------------------|--------------------|-------------------------------------------------------|
-| `buildtype`            | `"generic"`        | `native`, `generic`, `legacy`, `modern` (per arch)    |
-| `subsystem`            | `"CONSOLE"`        | `CONSOLE`, `WINDOWS`, `NATIVE`, `POSIX` (Windows)     |
-| `entry`                | —                  | Custom entry point                                    |
-| `noentry`              | `false`            | No entry point (mutually exclusive with `entry`)      |
-| `freestanding`         | `false`            | Freestanding mode (nostdlib, no stack protector, Oz)  |
-| `stack_protector`      | `false`            | `-fstack-protector-strong` in release                 |
-| `optimize`             | auto               | `size` (-Oz/Os), `fast` (-O2), `faster` (-O3), or raw |
-| `march`                | *(from buildtype)* | Override `-march` individually                        |
-| `mtune`                | *(from buildtype)* | Override `-mtune` individually                        |
-| `masm`                 | `"intel"`          | Assembly dialect — `"intel"` or `"att"` (x86_64 only) |
-| `exceptions`           | `false`            | Enable C++ exceptions in release builds               |
-| `rtti`                 | `false`            | Enable RTTI in release builds                         |
-
-### Architecture Presets
-
-Buildtype values are architecture-dependent. Each architecture has its own table:
-
-#### x86_64
 ```lua
-target("my_app")
-    set_values("buildtype", "generic")   -- march=x86-64-v2, mtune=generic (default)
-    set_values("buildtype", "native")    -- march=native,    mtune=native
-    set_values("buildtype", "legacy")    -- march=x86-64-v1, mtune=generic
-    set_values("buildtype", "modern")    -- march=x86-64-v4, mtune=generic
+target("app")
+    set_default  (true    )
+    set_languages("c++23" )
+    set_kind     ("binary")
+    set_basename ("app"   )
+
+    add_rules("cxx.headerunit_dirs")
+    add_rules("cxx.scanner_norm"   )
+
+    add_files("src/main.cpp")
+    add_packages("lbyte.stx")
+
+    set_values("buildtype" , "generic")
+    set_values("exceptions", true     )
+    set_values("rtti"      , true     )
+
+    on_config  ("actions.configure"  )
+    after_build("actions.after_build")
+    on_run     ("actions.run_process")
 ```
 
-#### arm64 (aarch64)
+The three `actions.*` hooks are required if you want the flag pipeline, shared
+library copying, payload dependency handling, `.lldbinit` generation and the
+`xmake run` wrapper.
+
+### Value resolution
+
+Per-target values are resolved in this order:
+
+1. CLI configuration — `xmake f --buildtype=native`
+2. `set_values("key", value)` on the target
+3. `set("key", value)` (legacy target property)
+4. Hardcoded default in `xmake/modules/cfg/flags.lua`
+
+| Key                | Default              | Accepted / effect                                                                                                         |
+| ------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `buildtype`        | `"generic"`          | `native`, `generic`, `legacy`, `modern` (per architecture)                                                                |
+| `subsystem`        | `"CONSOLE"`          | `CONSOLE`, `WINDOWS`, `NATIVE`, `POSIX`; `EFI_APPLICATION` on Windows hosts                                               |
+| `entry`            | —                    | Custom entry-point symbol                                                                                                 |
+| `noentry`          | `false`              | Omit the entry point; mutually exclusive with `entry`                                                                     |
+| `freestanding`     | `false`              | `-nostdlib`, no stack protector, default `-O2`                                                                            |
+| `stack_protector`  | `true`               | `-fstack-protector-strong` in release; `false` disables it                                                                |
+| `optimize`         | auto                 | `size` (`-Oz`/`-Os`), `fast` (`-O2`), `faster` (`-O3`) or a raw flag; auto means `-O2` when freestanding, otherwise `-O3` |
+| `march`            | from `buildtype`     | Override `-march`                                                                                                         |
+| `mtune`            | from `buildtype`     | Override `-mtune`                                                                                                         |
+| `masm`             | `"intel"`            | `intel` adds `-masm=intel`; any other value omits it (ATT)                                                                |
+| `exceptions`       | `false`              | Release only: `-fexceptions` / `-fno-exceptions`                                                                          |
+| `rtti`             | `false`              | Release only: `-frtti` / `-fno-rtti`                                                                                      |
+| `run.detach`       | `false`              | Run the target detached from `xmake run`                                                                                  |
+
+`buildtype` presets:
+
+| Architecture   | `native`                      | `generic`             | `legacy`              | `modern`              |
+| -------------- | ----------------------------- | --------------------- | --------------------- | --------------------- |
+| `x86_64`       | `-march=native -mtune=native` | `x86-64-v2 / generic` | `x86-64-v1 / generic` | `x86-64-v4 / generic` |
+| `arm64`        | `-march=native -mtune=native` | `armv8-a / generic`   | `armv8-a / generic`   | `armv8.5-a / generic` |
+| `arm32`        | `-march=native -mtune=native` | `armv7-a / generic`   | `armv5te / generic`   | `armv7ve / generic`   |
+
+`march` and `mtune` can be overridden individually:
+
 ```lua
-target("my_app")
-    set_values("buildtype", "generic")   -- march=armv8-a,   mtune=generic (default)
-    set_values("buildtype", "native")    -- march=native,    mtune=native
-    set_values("buildtype", "legacy")    -- march=armv8-a,   mtune=generic
-    set_values("buildtype", "modern")    -- march=armv8.5-a, mtune=generic
+set_values("buildtype", "native")
+set_values("march"    , "znver4")
+set_values("mtune"    , "znver4")
 ```
 
-#### arm32
+### Release behaviour
+
 ```lua
-target("my_app")
-    set_values("buildtype", "generic")   -- march=armv7-a,   mtune=generic (default)
-    set_values("buildtype", "native")    -- march=native,    mtune=native
-    set_values("buildtype", "legacy")    -- march=armv5te,   mtune=generic
-    set_values("buildtype", "modern")    -- march=armv7ve,   mtune=generic
+set_values("exceptions"    , true )  -- keep -fexceptions
+set_values("rtti"          , true )  -- keep -frtti
+set_values("stack_protector", false) -- disable -fstack-protector-strong
+set_values("optimize"      , "size") -- -Oz (Clang) or -Os (GCC)
 ```
 
-#### Individual overrides
-```lua
-set_values("march", "native")
-set_values("mtune", "znver4")
-```
+### Linker flags
 
-### ASM dialect (x86_64 only)
-```lua
-set_values("masm", "intel")   -- -masm=intel (default)
-set_values("masm", "att")     -- omit -masm (ATT syntax)
-```
-
-### RTTI / Exceptions in release
-```lua
-set_values("exceptions", true)   -- keep -fexceptions in release
-set_values("rtti",       true)   -- keep -frtti in release
-```
-
-### Compilation Info
-
-During `xmake f` every target prints detected toolchain info with ABI detection:
-
-```
-┌[ main: build/linux/x86_64/release/exec ]
-│    mode     : release
-│    toolchain: envs (gnu-abi)
-│    compiler : gcc
-│    triple   : x86_64-redhat-linux
-│    march    : x86-64-v2
-└─
-```
-
-The `abi` suffix (`gnu`, `msvc`, `android`, `musl`, etc.) is detected automatically from the target triple.
-For payload targets, an additional line shows the extracted `.bin` path and section.
-
-The info block is shown on demand via `xmake pinfo [target]`. It prints per-target toolchain, triple, ABI, march and additional context (e.g. payload output for `payload_extract` targets). Configuring stays quiet by default.
-
-### Linker Flags (non-MSVC)
-
-| Mode    | Flags                                                                                                                            |
-|---------|----------------------------------------------------------------------------------------------------------------------------------|
+| Mode    | Non-MSVC flags                                                                                                                   |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Release | `--gc-sections`, `--as-needed`, `--exclude-libs,ALL`, `--strip-all`, `-z relro`, `-z noexecstack`, `-z defs`, `-z separate-code` |
 | Debug   | `--as-needed`, `-z relro`, `-z now`, `-z noexecstack`, `-z defs`, `-z separate-code`                                             |
 
+`freestanding` adds `-nostdlib`. `entry` adds `-Wl,--entry=<symbol>` (or
+`/ENTRY:<symbol>` for MSVC).
+
+### Info box
+
+`xmake pinfo [target]` prints the cached configuration without reconfiguring.
+With no target name it prints every target.
+
+```text
+┌[ app: build/linux/x86_64/release/app ]
+│    toolchain    : gcc - gcc (gnu-abi)
+│    triple       : x86_64-redhat-linux
+│    march        : x86_64
+│    mode         : release
+│    payload.code : build/linux/x86_64/release/code.bin (.text)
+└─
+```
+
+The `payload.*` lines come from `payload_extract` targets (one line per
+configured payload).
+
 ### Cross-compilation
 
-ABI detection works with any xmake toolchain. Just set the platform/arch/toolchain as usual — the template adjusts flags automatically:
+ABI detection works with any xmake toolchain:
 
 ```sh
 xmake f -p android -a arm64-v8a -m release
 xmake
 ```
 
-#### Source-map for MSVC debug builds
-
-When cross-compiling with an MSVC-compatible toolchain (e.g., wincross) in debug mode,
-the template generates a `.lldbinit` file at `build/lldb/<target>.lldbinit` during
-`xmake f`. This file contains a `target.source-map` directive that maps the Linux
-build root to the local project root, enabling source-level debugging with lldb on
-Windows after copying the binary:
+For MSVC-compatible debug builds, `actions.configure` writes
+`build/lldb/<target>.lldbinit` with a `target.source-map` directive:
 
 ```powershell
-# On the target Windows machine:
 lldb -s build/lldb/main.lldbinit build\wincross\x86_64\debug\exec.exe
 ```
 
-The source root is saved as `.xmake/.source_root_linux` on the first configure
-and reused on Windows to produce the correct path mapping. On native Windows
-builds the map is a no-op (both paths are local).
+## Rules reference
 
-### Local Package Repository
-
-The template includes a local xmake package repository at `xmake/packages/` for personal libraries.
-Enabled via:
-
-```lua
-add_repositories("local-repo ./xmake/")
-```
-
-#### lbyte.stx
-
-A header-only C++23 utility library tracked via git tags:
-
-| Require                              | Description                        |
-|--------------------------------------|------------------------------------|
-| `add_requires("lbyte.stx")`          | Latest `main` branch (default)     |
-| `add_requires("lbyte.stx main")`     | Explicit `main` branch             |
-| `add_requires("lbyte.stx v0.4.0")`   | Specific git tag                   |
-
-```lua
-add_requires("lbyte.stx", {configs = {use_modules = false}})
-target("app")
-    add_packages("lbyte.stx")
-```
-
-New tags must be added to the package's `add_versions` entries to be resolvable.
-
-### Payload Extraction
-
-The `payload_extract` rule extracts a section from a PE/ELF binary as raw shellcode:
-
-```lua
-target("payload")
-    set_kind("binary")
-    add_rules("payload_extract")
-    set_values("payload.section", ".text")
-```
-
-On every build it runs `llvm-objcopy --dump-section <section>` and writes a `.bin` file
-alongside the binary. The output path is shown in the target info block:
-
-```
-│    payload  : build/<plat>/<arch>/<mode>/<basename>.bin (<section>)
-```
-
-| Value                  | Default   | Description                                      |
-|------------------------|-----------|--------------------------------------------------|
-| `payload.section`      | `".text"` | Section name to extract                          |
-| `freestanding`         | `true`    | Freestanding mode (nostdlib, -O2, no stack protector) |
-| `optimize`             | auto      | Override default optimization level (see Per-target Keys) |
-| `payload.extract`      | `true`    | Enable/disable extraction                        |
-| `payload.align`        | —         | Pad `.bin` to alignment boundary                 |
-| `payload.fill_byte`    | `0x00`    | Byte used for padding / strip sentinel           |
-| `payload.strip`        | `false`   | Strip trailing fill bytes from `.bin`            |
-| `payload.output`       | auto      | Output `.bin` filename (default: `<target>.bin`) |
-| `payload.objcopy`      | auto      | Override objcopy path (auto: llvm → GNU)         |
-| `payload.header`       | —         | Generate C/C++ header embedding the payload as hex array (see below) |
-
-Flags are applied by `flags.lua` — the rule only sets target values, it does not
-touch compiler/linker flags directly.
-
-#### Header Generation
-
-Set `payload.header` to generate an include file embedding the payload as hex bytes:
-
-```lua
-set_values("payload.header", {"cxx"})                                       -- C++ header, default path
-set_values("payload.header", {"c"})                                         -- C header
-set_values("payload.header", {"cxx", "generated/my_payload"})               -- custom include path
-set_values("payload.header", {"cxx", "${root}/ext/inc/payload"})            -- absolute via ${root}
-set_values("payload.header", {"cxx", "${build}/custom/payload"})            -- via ${build}
-```
-
-The second element of the array is the include path used in `#include`:
-
-| Setting | `#include` | File location |
-|---------|------------|---------------|
-| `{"cxx"}` | `#include "generated/payload.hpp"` | `<targetdir>/include/generated/payload.hpp` |
-| `{"cxx", "generated/my_payload"}` | `#include "generated/my_payload.hpp"` | `<targetdir>/include/generated/my_payload.hpp` |
-| `{"cxx", "${root}/ext/inc/payload"}` | `#include "${root}/ext/inc/payload.hpp"` | Outside build tree |
-| `{"c"}` | `#include "generated/payload.h"` | `<targetdir>/include/generated/payload.h` |
-
-All paths are relative to `<targetdir>/include/` unless they use `${root}` (project root)
-or `${build}` (target output directory).
-
-- **C output** (`.h`): `unsigned char name[] = { ... }; unsigned int name_size = N;`
-- **C++ output** (`.hpp`): `namespace name { consteval auto data() { ... } consteval std::size_t size() { ... } }`
-
-The byte array is formatted as blocks of 16 hex values per line:
-
-```cpp
-constexpr std::array<unsigned char, 206> raw = {
-    0x56, 0x57, 0x53, 0x48, 0x83, 0xEC, 0x30, 0x48, 0xB8, 0x6E, 0x6F, 0x74, 0x65, 0x70, 0x61, 0x64,
-    ...
-    0x5E, 0xC3
-};
-```
-
-The include directory `<targetdir>/include/` is automatically added to any target
-with `add_deps("payload")` through `actions.lua`:
-
-```lua
-target("loader")
-    add_deps("payload")     -- << can #include "generated/payload.hpp"
-    add_files("src/main.cpp")
-```
-
-A placeholder header with empty data is generated during `xmake f` so the LSP never
-complains about a missing include. The real header overwrites it in `after_build`.
-
-#### Payload Binary Copy
-
-The `payload_bin` rule copies the entire target binary to a `.bin` file (for flat binary
-output like NASM `-f bin`):
-
-```lua
-target("payload")
-    set_kind("binary")
-    add_rules("payload_bin")
-```
-
-It supports the same `payload.output`, `payload.align`, `payload.fill_byte`, and
-`payload.strip` options as `payload_extract`.
-
-## Available Rules
-
-The template ships several custom xmake rules under `xmake/rules/`. Enable them with `add_rules()` as needed.
+All rule definitions are loaded by `includes("./xmake/rules/*.lua")`; enable
+them per target with `add_rules("<name>")`.
 
 ### `vscode.compile_commands`
-Generates `compile_commands.json` (default `true`, can be disabled with `xmake f --compile-commands=n`).
+
+Generates `.vscode/compile_commands.json` once after configuration.
+
+| Option               | Default   | Description                   |
+| -------------------- | --------- | ----------------------------- |
+| `--compile-commands` | `true`    | Set to `n` to skip generation |
 
 ```lua
 add_rules("vscode.compile_commands")
 ```
 
+```sh
+xmake f --compile-commands=n
+```
+
 ### `cxx.headerunit_dirs`
-Fixes header-unit includes for GCC (no-op for Clang). Enables `import <dir/header.hpp>;` with subdirectories.
+
+Keeps header-unit BMIs **per target** and exposes header directories for GCC.
+
+Without it, xmake shares header-unit BMIs per mode (or uses `gcm.cache`), which
+breaks targets using different language options such as `-fexceptions` or
+`-frtti`. The rule relocates each header-unit BMI into the target's own module
+cache and fixes GCC's include handling for header units in subdirectories.
+
+No options.
 
 ```lua
 add_rules("cxx.headerunit_dirs")
 ```
 
+Recommended on every target that uses header units (`import <cstdio>;`).
+
 ### `cxx.scanner_norm`
-Normalizes GCC fallback scanner names (trailing whitespace/padding) to avoid dependency mismatches.
+
+Normalizes logical names produced by the C++ modules **fallback scanner**.
+Aligned imports keep trailing padding (`import std   ;`, `import <cstdio> ;`),
+which otherwise no longer matches the module that provides them. The rule
+strips the padding before header lookup and after scanning.
+
+No options.
 
 ```lua
 add_rules("cxx.scanner_norm")
 ```
 
+Use together with `set_policy("build.c++.modules.fallbackscanner", true)`.
+
 ### `embed_cxx`
-Embeds static files as C/C++ headers or C++ modules. Supports `hex` (default), `embed_macro = true` (`#embed`) or `incbin = true` (`.incbin` + `.S`). Mutually exclusive. See `xmake/rules/embed_cxx.lua` for full options.
+
+Generates C headers, C++ headers or C++ module units from static files.
 
 ```lua
 add_rules("embed_cxx")
+
 set_values("embed.assets", {
-    mode        = "header",  -- "header"|"module"|"c-header"
-    namespace   = "assets",
-    embed_macro = false,     -- use #embed
-    incbin      = false,     -- use .incbin via assembler
-    consteval   = false,
-    entries     = { {"data", "data.bin"} }
+    mode      = "header",          -- "header" | "module" | "c-header"
+    namespace = "assets",          -- C++ only
+    entries   = {
+        {"logo",   "assets/logo.png"},
+        {"config", "assets/config.json"},
+    },
 })
 ```
 
+Every group is configured as `set_values("embed.<id>", {...})`.
+
+| Key           | Type    | Default          | Description                                                  |
+| ------------- | ------- | ---------------- | ------------------------------------------------------------ |
+| `mode`        | string  | `"header"`       | `"header"`, `"module"` or `"c-header"`                       |
+| `module`      | string  | `"embed.<id>"`   | Module unit name; only valid in `"module"` mode              |
+| `namespace`   | string  | —                | C++ namespace wrapper; C++ only                              |
+| `consteval`   | boolean | `false`          | Emit `consteval` accessors instead of plain arrays; C++ only |
+| `incbin`      | boolean | `false`          | Copy bytes with the assembler (`.incbin`)                    |
+| `embed_macro` | boolean | `false`          | Copy bytes with `#embed`                                     |
+| `entries`     | list    | **required**     | List of `{name, path}` pairs                                 |
+| `output`      | string  | mode-dependent   | Output filename                                              |
+| `outdir`      | string  | generated dir    | Output directory                                             |
+| `asm`         | string  | `"embed_<id>.S"` | Assembler filename; `incbin` only                            |
+
+Default output names:
+
+| Mode               | File                                        |
+| ------------------ | ------------------------------------------- |
+| `header`           | `embedded_<id>.hpp`                         |
+| `module`           | `<module>.cppm` (default `embed.<id>.cppm`) |
+| `c-header`         | `embedded_<id>.h`                           |
+| `incbin` companion | `embed_<id>.S`                              |
+
+Constraints (rejected at configure time):
+
+- `incbin` and `embed_macro` are mutually exclusive.
+- `incbin` cannot be combined with `consteval` (a `std::span` is already
+  constexpr).
+- `module` is only valid in `"module"` mode.
+- `namespace` and `consteval` are only valid for C++ (`"c-header"` rejects them).
+- `embed_macro` is rejected in `"module"` mode (it ICEs Clang modules).
+
+Representation choices:
+
+```lua
+-- Hex literals (default): simple, but the whole payload is generated as text.
+set_values("embed.small", {
+    entries = {{"data", "data/small.bin"}},
+})
+
+-- #embed: tiny generated header, preprocessing copies the file.
+set_values("embed.large", {
+    mode        = "header",
+    embed_macro = true,
+    entries     = {{"data", "data/large.bin"}},
+})
+
+-- .incbin: best for very large payloads, copied verbatim by the assembler.
+set_values("embed.font", {
+    mode    = "header",
+    namespace = "font",
+    incbin  = true,
+    entries = {{"noto", "assets/NotoColorEmoji.ttf"}},
+})
+```
+
+The generated include directory is added to the target automatically. Module
+units and `.S` companions are registered as target files.
+
 ### `payload_extract`
-Extracts raw bytes from a PE/ELF section. Can also generate headers/modules via embed_gen or just output a `.bin` with `only_gen_bin`.
+
+Extracts a section (or an address range inside it) from the built target with
+`llvm-objcopy`/`objcopy`. It can generate a C header, C++ header or module, or
+only write the raw `.bin`.
+
+```lua
+add_rules("payload_extract")
+
+set_values("payload.cfg.code", {
+    mode    = "header",       -- "header" | "module" | "c"
+    section = ".text",
+    strip   = true,
+})
+```
+
+Multiple payloads are supported on the same target:
+
+```lua
+set_values("payload.cfg.code", {section = ".text"})
+set_values("payload.cfg.data", {section = ".rodata", strip = true})
+```
+
+| Key            | Type    | Default                    | Description                                           |
+| -------------- | ------- | -------------------------- | ----------------------------------------------------- |
+| `mode`         | string  | `"header"`                 | `"header"`, `"module"` or `"c"`                       |
+| `section`      | string  | `".text"`                  | Section to dump                                       |
+| `addr`         | table   | —                          | `{start, end}` 0-based byte range; `end` is exclusive |
+| `strip`        | boolean | `false`                    | Drop trailing fill bytes                              |
+| `align`        | integer | —                          | Pad the result to this alignment                      |
+| `fill_byte`    | integer | `0x00`                     | Byte used by `strip` and `align`                      |
+| `only_gen_bin` | boolean | `false`                    | Write only the raw `.bin`; do not generate code       |
+| `binfile`      | string  | `"<targetdir>/<name>.bin"` | Output path of the `.bin`                             |
+| `namespace`    | string  | —                          | C++ namespace wrapper; C++ only                       |
+| `consteval`    | boolean | `false`                    | Emit `consteval` accessors; C++ only                  |
+
+Generated code goes to `<targetdir>/include/<name>.<ext>`:
+
+| Mode     | Extension   |
+| -------- | ----------- |
+| `header` | `.hpp`      |
+| `module` | `.cppm`     |
+| `c`      | `.h`        |
+
+The include directory is registered as an interface include directory, and its
+path is stored in `payload.generated_dir`; dependents added with
+`add_deps("<payload-target>")` inherit it automatically.
+
+A zero-length placeholder is generated during `xmake f`. The real file is
+written in `after_build`, so the LSP sees the header immediately and the next
+build picks up the actual bytes.
+
+Pair `only_gen_bin` with `embed_cxx` when you want to choose the final
+representation yourself:
 
 ```lua
 target("payload")
     set_kind("binary")
     add_rules("payload_extract")
     set_values("payload.cfg.code", {
-        section = ".text",
+        section      = ".text",
         only_gen_bin = true,
-        binfile = "build/code.bin",
+        binfile      = "build/gen/code.bin",
+    })
+
+target("app")
+    add_rules("embed_cxx")
+    set_values("embed.code", {
+        mode    = "header",
+        incbin  = true,
+        entries = {{"code", "build/gen/code.bin"}},
     })
 ```
 
 ### `bundle.fetch`
-Fetches data/assets on demand from a release bundle if missing (mirrors lang.bundle).
+
+Downloads and extracts a release bundle when any required file is missing.
+It is a thin, validated wrapper around `lang.bundle`.
 
 ```lua
 add_rules("bundle.fetch")
+
 set_values("bundle.entries", bundle.fetch({
-    url   = "https://github.com/example/releases/latest/download/bundle.tar.gz",
+    url   = "https://github.com/example/project/releases/latest/download/bundle.tar.gz",
     dest  = ".",
-    check = {"data/file.dat"},
+    check = {"data/file.dat", "assets/font.ttf"},
 }))
 ```
 
-### `tasks`
-Custom tasks:
-- `xmake pinfo [target]` — show target info box(es)
-- `xmake setup-perl` — validate/setup Perl environment for `perl` rule targets
+| Field          | Type        | Required   | Description                                                      |
+| -------------- | ----------- | ---------- | ---------------------------------------------------------------- |
+| `url`          | string      | yes        | Download URL or local path                                       |
+| `dest`         | string      | yes        | Extraction directory                                             |
+| `check`        | string/list | yes        | Files that must exist; the bundle is fetched when one is missing |
+| `kind`         | string      | no         | `"file"` or `"archive"`; inferred from `url` when omitted        |
+| `strip`        | integer     | no         | Leading path components to strip while extracting                |
+| `only`         | string/list | no         | Extract only these archive members                               |
+| `marker`       | string      | no         | Extra marker file                                                |
+| `sha256`       | string      | no         | Expected 64-character hex digest                                 |
+| `auth`         | string      | no         | `"gh"` to authenticate with the GitHub CLI                       |
+| `check_strict` | boolean     | no         | Require every `check` entry (default `false`)                    |
 
-### `perl` (via lang.perl)
-Rule for running Perl scripts with optional Carton dependency management. See `xmake/modules/lang/perl.lua`.
+`bundle.fetch` accepts one table or a list of tables:
 
----
+```lua
+set_values("bundle.entries", bundle.fetch({
+    {url = ".../data.tar.gz", dest = "data", check = {"data/a.dat"}},
+    {url = ".../assets.tar.gz", dest = "assets", check = {"assets/font.ttf"}},
+}))
+```
 
-### Custom Extras (survive flag reset)
+### Tasks
 
-| Method                  | Description                 |
-|-------------------------|-----------------------------|
-| `add_cxflags(...)`      | Extra C/C++ flags           |
-| `add_cflags(...)`       | Extra C flags               |
-| `add_cxxflags(...)`     | Extra C++ flags             |
-| `add_links(...)`        | Extra libraries to link     |
-| `add_defines(...)`      | Extra preprocessor defines  |
-| `set("runargs", {...})` | Arguments passed at runtime |
+| Task                   | Description                                                        |
+| ---------------------- | ------------------------------------------------------------------ |
+| `xmake pinfo [target]` | Print target info box(es); all targets when no name is given       |
+| `xmake setup-perl`     | Validate/install Perl dependencies (requires a `lang.perl` module) |
 
-### Full Example
+`setup-perl` is only useful if you provide `lang.perl` yourself; it is not part
+of this template.
+
+## Extra flags and runtime arguments
+
+The flag pipeline resets compiler/linker flags before applying its own, then
+restores these additions:
+
+| Method                           | Description                     |
+| -------------------------------- | ------------------------------- |
+| `add_cxflags(...)`               | Extra C/C++ flags               |
+| `add_cflags(...)`                | Extra C flags                   |
+| `add_cxxflags(...)`              | Extra C++ flags                 |
+| `add_links(...)`                 | Extra libraries                 |
+| `add_defines(...)`               | Extra preprocessor definitions  |
+| `set("runargs", {...})`          | Arguments passed to the program |
+| `set_values("run.detach", true)` | Run detached from `xmake run`   |
+
+## Full example
 
 ```lua
 set_project ("MyProject")
 set_version ("1.0.0")
-set_xmakever("2.8.0")
+set_xmakever("3.0.0")
 
 includes("./xmake/rules/*.lua")
-add_moduledirs("./xmake/modules/")  -- enables import("cfg.triple"), import("cfg.flags")
+add_repositories("local-repo ./xmake/")
+add_moduledirs("./xmake/modules/")
+
+set_policy("build.c++.modules"                , true)
+set_policy("build.c++.modules.std"            , true)
+set_policy("build.c++.modules.gcc.cxx11abi"   , true)
+set_policy("build.c++.modules.fallbackscanner", true)
+set_policy("build.c++.modules.reuse.strict"   , true)
+
+-- Keep dictionary values intact (stock xmake treats a trailing table as
+-- extra configuration).
+_embed_orig_set_values = _embed_orig_set_values or set_values
+function set_values(...)
+    local args = {...}
+    if #args == 2 then
+        local name, value = args[1], args[2]
+        if type(value) == "table" and table.is_dictionary(value) then
+            return _embed_orig_set_values(name, value, {expand = false})
+        end
+    end
+    return _embed_orig_set_values(...)
+end
+
 add_rules("vscode.compile_commands")
+add_requires("lbyte.stx v0.4.0", {configs = {use_modules = true}})
 
 target("app")
-    set_default   (true    )
-    set_languages ("c++23" )
-    set_kind      ("binary")
-    set_basename  ("my_app")
+    set_default  (true    )
+    set_languages("c++23" )
+    set_kind     ("binary")
+    set_basename ("app"   )
+
+    add_rules("cxx.headerunit_dirs")
+    add_rules("cxx.scanner_norm"   )
 
     add_files("src/main.cpp")
+    add_packages("lbyte.stx")
 
-    set_values("buildtype",   "native"  )
-    set_values("subsystem",   "CONSOLE" )
-    set_values("exceptions",  true      )
-    set        ("runargs",    {"arg1", "arg2"})
+    set_values("buildtype" , "native" )
+    set_values("exceptions", true     )
+    set_values("rtti"      , true     )
+    set_values("run.detach", false    )
+    set        ("runargs"  , {"--help"})
 
     add_links("m")
+    add_defines("APP_BUILD=1")
 
-    on_config( "actions.configure" )
-    on_run   ( "actions.run_process" )
+    on_config  ("actions.configure"  )
+    after_build("actions.after_build")
+    on_run     ("actions.run_process")
 ```
 
-## Project Structure
+## Modules and header units
 
-```
-├── xmake.lua
-├── xmake/
-│   ├── modules/
-│   │   ├── actions.lua         # Target lifecycle hooks
-│   │   ├── cfg/
-│   │   │   ├── triple.lua      # Toolchain detection (import "cfg.triple")
-│   │   │   └── flags.lua       # Flag pipeline (import "cfg.flags")
-│   │   └── utils/
-│   │       └── strings.lua     # String helpers (indent cleanup)
-│   ├── packages/
-│   │   └── l/
-│   │       └── lbyte.stx/
-│   │           └── xmake.lua   # Local package repo
-│   └── rules/
-│       ├── bundle.lua            # On-demand asset download from releases
-│       ├── compile_commands.lua  # vscode.compile_commands rule
-│       ├── embed_cxx.lua         # Embed static files as C/C++/modules
-│       ├── headerunit_dirs.lua   # Fix header unit includes for GCC
-│       ├── payload_extract.lua   # PE/ELF section extraction via objcopy
-│       ├── scanner_norm.lua      # Normalize module scanner names (GCC/Clang)
-│       └── tasks.lua             # Custom tasks (pinfo, setup-perl)
-├── src/
-│   └── main.cpp
-├── build/
-│   └── lldb/
-│       └── <target>.lldbinit   # Source-map for MSVC debug (auto-generated)
-├── install.sh
-├── install.ps1
-└── README.md
+The template keeps `build.c++.modules.fallbackscanner` enabled because the
+fallback scanner is what makes cross-toolchain module builds predictable here.
+
+- `cxx.headerunit_dirs` gives every target its own header-unit BMI. This is why
+  `app` and `app2` can import `<cstdio>` while using different `-fexceptions` /
+  `-frtti` settings.
+- `cxx.scanner_norm` removes padding left by aligned imports before the scanner
+  records dependency names.
+- `actions.configure` clears a stale `cxxmodules` cache when the mode,
+  toolchain, architecture or platform changes, and removes GCC's stray
+  `gcm.cache` after configuration and after the build.
+
+If builds ever look inconsistent after a manual toolchain switch, a clean
+rebuild is still safe:
+
+```sh
+rm -rf .xmake build gcm.cache
+xmake f --toolchain=clang -y
+xmake build
 ```
 
+## Local package repository
+
+`xmake/packages/` is a local repository, enabled by:
+
+```lua
+add_repositories("local-repo ./xmake/")
+```
+
+### `lbyte.stx`
+
+A C++23 utility library tracked by git tags:
+
+```lua
+add_requires("lbyte.stx v0.4.0", {configs = {use_modules = true}})
+
+target("app")
+    add_packages("lbyte.stx")
+```
+
+`use_modules = false` builds it as a header-only package.
+New tags must be added to `add_versions` in
+`xmake/packages/l/lbyte.stx/xmake.lua`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,22 +1,5 @@
--- Reusable "pinfo" info-box renderer. Any target kind (C/C++, perl, python,
--- tcl, ...) can build a list of key/value items -- or fully custom lines --
--- and this module draws the whole bordered box, so every target shares a
--- single format.
---
---   cfg.infobox.render("gen-data", "scripts/gen-emoji.pl", {
---       {label = "perl",   value = "v5.42.3 (/usr/bin/perl)"},
---   {label = "script", value = "scripts/gen-emoji.pl", children = {
---       {label = "root", value = "scripts"},
---       {label = "args", list  = {"--output", "../data/emojis.dat"}},
---   }},
---       "${bright}    a fully custom line${clear}",
---   })
---
--- Item shapes:
---   * {label = L, value = V}                 key/value line
---   * {label = L, list  = {...}}             key + one numbered line per list item
---   * {label = L, value = V, children = {...}}  key/value + nested sub-items (deeper indent)
---   * "string"                               raw custom line (caller controls colors and padding)
+-- Shared "pinfo" info-box renderer.
+-- Items: {label, value}, {label, list}, {label, value, children}, or raw string.
 
 local function render_group(entries, indent)
     local w = 0

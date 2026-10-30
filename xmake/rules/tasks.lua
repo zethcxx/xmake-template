@@ -13,7 +13,6 @@ task("pinfo")
         import("core.project.config" )
         import("core.base.option" )
         import("cfg.triple"  )
-        import("lang.perl"   )
 
         config.load()
 
@@ -21,7 +20,7 @@ task("pinfo")
         for _, t in ipairs(project.ordertargets()) do
             if name == nil or t:name() == name then
                 if t:rule("perl") then
-                    perl.print_info(t)
+                    import("lang.perl").print_info(t)
                 else
                     local info = triple.get(t)
                     if info then

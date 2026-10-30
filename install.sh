@@ -19,7 +19,6 @@ ENTRIES=(
     "xmake/modules/cfg/triple.lua"
     "xmake/modules/embed_gen.lua"
     "xmake/modules/embed_hex.lua"
-    "xmake/modules/utils/strings.lua"
     "xmake/packages/l/lbyte.stx/xmake.lua"
     "xmake/rules/bundle.lua"
     "xmake/rules/compile_commands.lua"

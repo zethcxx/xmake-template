@@ -1,46 +1,22 @@
--- Extracts a section (or an address range within it) from a built binary.
+-- Extract a section (or address range) from a built binary.
 --
--- By default it also emits the extracted bytes as a generated C/C++ header or
--- module, reusing embed_gen's writers.  With `only_gen_bin` it stops after
--- writing the raw .bin, leaving the choice of representation to embed_cxx
--- (hex, #embed or .incbin) -- see "Feeding the result to embed_cxx" below.
+--   add_rules("payload_extract")
+--   set_values("payload.cfg.<name>", {
+--       mode         = "header",   -- "header" (default) | "module" | "c"
+--       section      = ".text",    -- section to dump
+--       addr         = nil,        -- { start, end } byte range into the dump
+--       strip        = false,      -- drop trailing fill bytes
+--       align        = nil,        -- pad to this size with fill_byte
+--       fill_byte    = 0x00,       -- byte used to strip/pad
+--       only_gen_bin = false,      -- write only the raw .bin
+--       binfile      = nil,        -- .bin path (default next to the target)
+--       namespace    = nil,        -- C++ only
+--       consteval    = false,      -- C++ only
+--   })
 --
--- Configure one or more payloads with add_values("payload.cfg.<name>", {...}):
---
---     add_rules("payload_extract")
---     set_values("payload.cfg.code", {
---         mode         = "header",          -- "header"|"module"|"c"; ignored when
---                                            -- only_gen_bin is set
---         consteval    = true,              -- optional, C++ only, default false
---         namespace    = "boot",
---         section      = ".text",           -- section to dump (default ".text")
---         addr         = {0x100, 0x200},    -- optional crop offsets into the dump
---         strip        = true,              -- drop trailing fill bytes
---         align        = 16,                -- pad to alignment with fill_byte
---         fill_byte    = 0xFF,
---         only_gen_bin = true,              -- write just the .bin, no code
---         binfile      = "build/code.bin",  -- optional; where to put the .bin
---     })
---
--- The generated artifact is written into <targetdir>/include/<name>.<ext> and
--- that directory is added to the target includes, so dependents that list this
--- target via add_deps inherit it automatically.
---
--- Feeding the result to embed_cxx
---   Extraction happens in after_build, but embed_cxx generates in on_config, so
---   on a tree that has never been built there is no .bin yet to embed.  embed_cxx
---   already handles that: a group whose sources are missing is skipped and
---   retried on the next configure.  So the first build produces the .bin and a
---   second `xmake f` picks it up.  Point both rules at the same path:
---
---       set_values("payload.cfg.code", { section = ".text", only_gen_bin = true,
---                                        binfile = "build/gen/code.bin" })
---       set_values("embed.code", { mode = "header", namespace = "code",
---                                  incbin = true,
---                                  entries = { {"code", "build/gen/code.bin"} } })
---
---   Prefer binfile over the default location: the default sits next to the
---   linked binary, whose path is not knowable while writing xmake.lua.
+-- All keys are optional. Generated code goes to <targetdir>/include and is
+-- reused via embed_gen. With only_gen_bin, pair it with embed_cxx to choose the
+-- final representation.
 
 local PREFIX = "payload.cfg."
 
@@ -71,7 +47,6 @@ local function output_location(target)
     return path.join(target_dir, "include")
 end
 
--- Collects payload.cfg.<name> values (set via add_values) into an ordered list.
 local function collect_payloads(target)
     local configs = {}
 
@@ -106,9 +81,7 @@ local function register_artifact(target, include_root, cfg, name)
     end
 end
 
--- Where the extracted bytes land.  Defaults next to the linked binary, which is
--- only knowable once the target file path is; `binfile` lets the caller pin it to
--- something it can also reference from xmake.lua.
+-- Defaults next to the linked binary; binfile pins a path usable from xmake.lua.
 local function bin_path(target_file, name, cfg)
     if cfg.binfile then
         return path.absolute(cfg.binfile)
@@ -119,8 +92,6 @@ local function bin_path(target_file, name, cfg)
     return path.join(path.directory(target_file), name .. ".bin")
 end
 
--- Crops the dumped bytes to the configured address range.  `os` is passed in for
--- the same reason as in extract() below.
 local function apply_addr_range(os, data, addr)
     if not addr then
         return data
@@ -138,7 +109,6 @@ local function apply_addr_range(os, data, addr)
     return data:sub(start_offset + 1, math.min(end_offset, #data))
 end
 
--- Strips trailing fill bytes.
 local function strip_fill(data, fill_byte)
     local index = #data
     while index > 0 and data:byte(index) == fill_byte do
@@ -148,7 +118,6 @@ local function strip_fill(data, fill_byte)
     return data:sub(1, index)
 end
 
--- Pads the data to the given alignment with fill_byte.
 local function pad_align(data, align, fill_byte)
     local pad = (align - #data % align) % align
     if pad > 0 then
@@ -158,14 +127,8 @@ local function pad_align(data, align, fill_byte)
     return data
 end
 
--- Dumps `section` with objcopy, applies the crop/strip/pad pipeline, and writes
--- the result back over bin_file so the bytes on disk are the ones asked for.
---
--- `os` and `io` are parameters rather than globals on purpose.  A rule file is
--- evaluated in a restricted environment where `os` and `io` are stripped down, and
--- a helper defined at file scope captures that environment, so `os.mkdir` and
--- `io.open` read back as nil inside it.  The hook bodies do get the full API, so
--- both are handed down from there instead.
+-- Dumps a section with objcopy, applies crop/strip/pad, and rewrites the .bin.
+-- os/io are passed in because file-scope helpers see a restricted environment.
 local function extract(os, io, objcopy, target_file, bin_file, cfg)
     os.mkdir(path.directory(bin_file))
     os.execv(objcopy, {
@@ -191,9 +154,7 @@ local function extract(os, io, objcopy, target_file, bin_file, cfg)
         data = pad_align(data, cfg.align, cfg.fill_byte or 0x00)
     end
 
-    -- objcopy left the raw section in bin_file; the pipeline above is what the
-    -- caller actually asked for, so persist it.  Without this only_gen_bin would
-    -- silently hand out untrimmed bytes, since nothing else consumes `data`.
+    -- Persist the cropped/padded bytes overwriting objcopy's raw section dump.
     local out = io.open(bin_file, "wb")
     if not out then
         os.raise("payload_extract: unable to rewrite %s", bin_file)
@@ -218,17 +179,13 @@ rule("payload_extract")
         for _, item in ipairs(collect_payloads(target)) do
             local name, cfg = item[1], item[2]
             if cfg.only_gen_bin then
-                -- No code to stub out, so nothing to register either.  Make sure
-                -- the directory exists and publish the path, which is all a
-                -- consumer needs to name the same file in its own config.
                 local bin = cfg.binfile and path.absolute(cfg.binfile) or nil
                 if bin then
                     os.mkdir(path.directory(bin))
                     target:values_set("payload.bin." .. name, bin)
                 end
             elseif include_root then
-                -- A zero-length placeholder, so dependents can #include this
-                -- header before after_build has produced the real bytes.
+                -- Zero-length placeholder until after_build writes the real bytes.
                 import("embed_gen").write_file(include_root, name, build_opts(cfg), nil)
                 register_artifact(target, include_root, cfg, name)
             end
