@@ -71,6 +71,7 @@ The scripts download `xmake.lua`, the complete `xmake/` tree and `src/main.cpp`.
 │       ├── bundle.lua            # bundle.fetch
 │       ├── compile_commands.lua  # vscode.compile_commands
 │       ├── embed_cxx.lua         # embed_cxx
+│       ├── header_impls.lua      # cxx.header_impls
 │       ├── headerunit_dirs.lua   # cxx.headerunit_dirs
 │       ├── payload_extract.lua   # payload_extract
 │       ├── scanner_norm.lua      # cxx.scanner_norm
@@ -238,13 +239,56 @@ breaks targets using different language options such as `-fexceptions` or
 `-frtti`. The rule relocates each header-unit BMI into the target's own module
 cache and fixes GCC's include handling for header units in subdirectories.
 
-No options.
+| Option               | Description                                                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `headerunit_defines` | Per-header defines injected into the header-unit compile. Keys may be the header basename or its full path.      |
 
 ```lua
-add_rules("cxx.headerunit_dirs")
+add_rules("cxx.headerunit_dirs", {
+    headerunit_defines = {
+        ["foo.h"] = "FOO_STATIC"
+    }
+})
 ```
 
+Header units are compiled as separate translation units, so a `#define` written
+in the importing source does not reach them. This option covers defines that are
+legal in a header unit. A header unit cannot contain non-inline external
+definitions, so single-header implementations (`CLAY_IMPLEMENTATION`, `STB_*`)
+must use `cxx.header_impls` below instead.
+
 Recommended on every target that uses header units (`import <cstdio>;`).
+
+### `cxx.header_impls`
+
+Generates ordinary translation units for single-header libraries whose
+implementation cannot be part of a header unit. Every entry emits its `#define`
+lines followed by the header include, then registers the generated `.cpp` in the
+target:
+
+```lua
+add_rules("cxx.header_impls", {
+    impls = {
+        { header = "clay.h", defines = "CLAY_IMPLEMENTATION" },
+        { header = "stb_image.h",
+          defines = { "STB_IMAGE_IMPLEMENTATION", "STBI_NO_STDIO" } },
+    }
+})
+```
+
+| Field     | Description                                                              |
+| --------- | ------------------------------------------------------------------------ |
+| `header`  | Header to include (required).                                            |
+| `defines` | String or list. `NAME=VALUE` becomes `#define NAME VALUE`.               |
+| `quote`   | Include as `"header"` instead of `<header>`.                             |
+| `name`    | Override the generated file stem.                                        |
+
+Generated files live under `build/.gens/header_impls/<target>/<stem>.cpp` and
+are compiled with the target's normal language and compiler options.
+
+Use this for single-header implementations such as `CLAY_IMPLEMENTATION` or
+`STB_*_IMPLEMENTATION`: a C++ header unit may not contain non-inline external
+definitions, so those definitions must live in an ordinary translation unit.
 
 ### `cxx.scanner_norm`
 
@@ -252,6 +296,11 @@ Normalizes logical names produced by the C++ modules **fallback scanner**.
 Aligned imports keep trailing padding (`import std   ;`, `import <cstdio> ;`),
 which otherwise no longer matches the module that provides them. The rule
 strips the padding before header lookup and after scanning.
+
+It also resolves angle headers in the same order as the compiler (target and
+package include directories before the toolchain's own) and re-applies the
+target's configured standard while the Clang fallback scanner preprocesses, so
+headers that guard on `__cplusplus` still see the project standard.
 
 No options.
 

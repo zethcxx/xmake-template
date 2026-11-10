@@ -79,6 +79,21 @@ local function is_freestanding(target)
     return get_target_value(target, "freestanding", false)
 end
 
+-- Highest C++ standard requested by the target (c++17, c++23, c++26, ...).
+-- Used for MSVC STL feature macros: the modules scanner strips `-std=c++*`
+-- when preprocessing, so the STL would otherwise fall back to C++14.
+local function cxx_standard(target)
+    local best = 0
+    for _, lang in ipairs(target:get("languages") or {}) do
+        lang = lang:lower()
+        local version = lang:find("latest", 1, true) and 26 or tonumber(lang:match("%d+"))
+        if version and version > best then
+            best = version
+        end
+    end
+    return best
+end
+
 local function add_to(target)
     return {
         cxflags  = function(flags) target:add("cxflags" , flags, {force = true}) end,
@@ -150,6 +165,18 @@ local function apply_common_flags( target, info )
             "UNICODE=1",
             "_UNICODE=1",
         })
+
+        -- `_MSVC_LANG` is a compiler-owned macro: redefining it forces us to
+        -- silence -Wmacro-redefined and hardcode a language version.  The STL
+        -- reads these opt-in macros first (`#ifndef _HAS_CXXxx`), so defining
+        -- them from the target's languages is both warning-free and future
+        -- proof (c++26, c++latest, ...).
+        local std = cxx_standard(target)
+        for _, level in ipairs({17, 20, 23, 26}) do
+            if std >= level then
+                f.defines("_HAS_CXX" .. level .. "=1")
+            end
+        end
     end
 end
 
